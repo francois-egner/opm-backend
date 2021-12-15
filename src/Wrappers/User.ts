@@ -51,17 +51,18 @@ export class User{
         }
         
         try{              
-            const queryData = [email, password_hash, role, forename, surname, display_name]
+            const queryData = [email,password_hash, role, forename, surname, display_name]
             const userData = await connection.one(userQueries.create, queryData)
             return new User(userData.id, userData.email, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name)
         }catch(err: unknown){
-            throw new Exception("Failed to create new user", ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR)
+            throw new Exception("Failed to create new user", ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }    
         
 
     }
+    
 
-
+    //#region Getters & Setters
     get id(): number{
         return this._id
     }
@@ -89,4 +90,5 @@ export class User{
     get display_name(): string{
         return this._display_name
     }
+    //#endregion
 }
