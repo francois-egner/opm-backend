@@ -17,11 +17,16 @@ export class Exception{
     /**
      * The status of the response to be sent after the Exception was thrown
      */
-    private _responseStatus: number;
+    private _responseStatus: number
     /**
      * The message to be logged that describes the cause of the exception
      */
-    private _message: string;
+    private _message: string
+
+    /**
+     * The error the exception will encapsulate. This additional information is useful for proper logging
+     */
+    private _error: Error|undefined
 
     /**
      * Constructor
@@ -29,11 +34,12 @@ export class Exception{
      * @param {ExceptionType} type - The type of exception
      * @param {number} reponseStatus - The status of the response to be send to the requester
      */
-    constructor(message: string, type: ExceptionType = ExceptionType.RuntimeError, reponseStatus: number = HttpStatus.INTERNAL_SERVER_ERROR){
+    constructor(message: string, type: ExceptionType = ExceptionType.RuntimeError, reponseStatus: number = HttpStatus.INTERNAL_SERVER_ERROR, error?: Error){
         this._type = type
         this._code = this.codeInfo()
-        this._responseStatus = reponseStatus;
-        this._message = message;
+        this._responseStatus = reponseStatus
+        this._message = message
+        this._error = error
 
     }
 
@@ -65,6 +71,10 @@ export class Exception{
         return data;
     }
 
+    public toString(): string{
+        return `[${this.type}] ${this.message} @ ${this.code}${this.error ? '\n' + this.error:""}`
+    }
+
     get code(): string{
         return `File: ${this._code.file} | Line: ${this._code.line} | Column: ${this._code.char}`
     }
@@ -80,4 +90,10 @@ export class Exception{
     get type(): ExceptionType{
         return this._type;
     }
+
+    get error(): Error|undefined{
+        return this._error
+    }
+
+
 }
