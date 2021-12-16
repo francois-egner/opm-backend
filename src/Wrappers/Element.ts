@@ -3,6 +3,7 @@ import { elementQueries } from "../Sql/index"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { connection as conn } from "../Sql"
+import { TypeOfExpression } from "typescript"
 
 /**
  * An Element is a part of a section. It represents an information that should be stored in a section.
@@ -41,6 +42,15 @@ export class Element{
      */
     private _type: Types.Element.ElementType
 
+
+    /**
+    * @param id Unique identifier of element
+    * @param name Name of new element
+    * @param value Actual value of new element
+    * @param type Type of element (e.g. password, cleartext etc.)
+    * @param pos_index Position (index) of element in section
+    * @param section_id Unique identifier of section the new element will be part of
+    */
     constructor(id: number, name: string, value: string, type: Types.Element.ElementType, pos_index: number, section_id: number){
         this._name = name
         this._value = value
@@ -51,6 +61,7 @@ export class Element{
     }
 
     /**
+    * Creates a new element with the provided properties 
     * @param name Name of new element
     * @param value Actual value of new element
     * @param type Type of element (e.g. password, cleartext etc.)
@@ -70,19 +81,38 @@ export class Element{
     }
 
     /**
+    * Tries to fetch the element with the provided unique identifier
     * @param id Unique identifier of element to be found 
     */
     static async findById({id} : Types.Element.Params.findById): Promise<Element|null>{
+        const exists = await this.exists({id: id})
+        if(exists) return null
+
         try{
             const queryData = [id]
-            const elementData = await conn.oneOrNone(elementQueries.findById, queryData)
-            if(elementData == null) return null;
+            const elementData = await conn.one(elementQueries.findById, queryData)
 
             return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
         }catch(err: unknown){
             throw new Exception("Failed to find element", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+    /**
+     * Checks for existence of an element with the provided unique identifier
+     * @param id Unique identifier to check existence for 
+     * @returns true if an element with the provided id was found, else false
+     */
+    static async exists({id}: Types.Element.Params.exists){
+        try{
+            const existsData = await conn.one(elementQueries.exists, [id])
+            return existsData.exists
+        }catch(err: unknown){
+            throw new Exception("Failed to check for existence", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+
 
     //#region Getters & Setters
     get id(): number{

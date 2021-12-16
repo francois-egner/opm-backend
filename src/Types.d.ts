@@ -85,6 +85,20 @@ export namespace Types{
             export interface findById{
                 id: number
             }
+
+            /**
+             * @param id Unique identifier of element to be found 
+             */
+             export interface exists{
+                id: number
+            }
+
+            /**
+             * @param id Unique identifier of element to be deleted
+             */
+            export interface deleteById{
+                id: number
+            }
         }
     }
 }
