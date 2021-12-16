@@ -51,27 +51,39 @@ export namespace Types{
 
     export namespace Element{
 
+        /**
+         * @param ClearText Element value will be displayed clearly
+         * @param Password Element value will be displayed as **** & shortcut to a password generator will be rendered
+         */
         export const enum ElementType{
             ClearText = 0,
             Password = 1
         }
 
-        /**
-         * @param name Name of new element
-         * @param value Actual value of new element
-         * @param type Type of element (e.g. password, cleartext etc.)
-         * @param pos_index Position (index) of element in section
-         * @param section_id Unique identifier of section the new element will be part of
-         * @param connection Task/Transaction for querying
-         */
+        
         export namespace Params{
+            /**
+            * @param name Name of new element
+            * @param value Actual value of new element
+            * @param type Type of element (e.g. password, cleartext etc.)
+            * @param pos_index Position (index) of element in section
+            * @param section_id Unique identifier of section the new element will be part of
+            * @param connection Task/Transaction for querying
+            */
             export interface create{
                 name: string,
                 value: string,
                 type: ElementType,
-                pos_index: number,
+                pos_index?: number,
                 section_id: number,
                 connection?: CustomConnection
+            }
+            
+            /**
+             * @param id Unique identifier of element to be found 
+             */
+            export interface findById{
+                id: number
             }
         }
     }

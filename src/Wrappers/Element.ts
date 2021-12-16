@@ -59,15 +59,30 @@ export class Element{
     * @param connection Task/Transaction for querying
     */
     static async create({name, value, type, pos_index = 0, section_id, connection=conn} : Types.Element.Params.create): Promise<Element>{
+        //TODO: Check if section exists
         try{              
             const queryData = [name,value, type, pos_index, section_id]
             const elementData = await connection.one(elementQueries.create, queryData)
             return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
         }catch(err: unknown){
-            throw new Exception("Failed to create new user", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+            throw new Exception("Failed to create new element", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         } 
     }
 
+    /**
+    * @param id Unique identifier of element to be found 
+    */
+    static async findById({id} : Types.Element.Params.findById): Promise<Element|null>{
+        try{
+            const queryData = [id]
+            const elementData = await conn.oneOrNone(elementQueries.findById, queryData)
+            if(elementData == null) return null;
+
+            return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
+        }catch(err: unknown){
+            throw new Exception("Failed to find element", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
 
     //#region Getters & Setters
     get id(): number{
