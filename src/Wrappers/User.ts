@@ -1,4 +1,4 @@
-import { Params } from "../Params"
+import { Types } from "../Types"
 import { userQueries } from "../Sql/index"
 import { Exception } from "../Utils/Exception"
 import {  checkForUndefined, ExceptionType, isValidEmail } from "../Utils/Shared"
@@ -14,7 +14,7 @@ export class User{
 
     private _password_hash: string
 
-    private _role: Params.User.Role
+    private _role: Types.User.Role
 
     private _forename: string
 
@@ -23,7 +23,7 @@ export class User{
     private _display_name: string;
 
 
-    constructor(id: number, email: string, password_hash: string, role: Params.User.Role, forename: string, surname: string, display_name: string){
+    constructor(id: number, email: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string){
         this._id = id
         this._email = email
         this._password_hash = password_hash
@@ -44,10 +44,10 @@ export class User{
      * @param connection Task/Transaction for querying 
      * @returns Instance of newly created user
      */
-    static async create({email, password_hash, role, forename, surname, display_name, connection = conn}:Params.User.create): Promise<User>{
+    static async create({email, password_hash, role, forename, surname, display_name, connection = conn}:Types.User.Params.create): Promise<User>{
         //TODO: Add additional param validations
         if(!checkForUndefined({email, password_hash, role, forename, surname, display_name}) || !isValidEmail(email)){
-            throw new Exception("One or many parameters are not valid!", ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+            throw new Exception("One or many parameters are not valid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         }
         
         try{              
@@ -55,7 +55,7 @@ export class User{
             const userData = await connection.one(userQueries.create, queryData)
             return new User(userData.id, userData.email, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name)
         }catch(err: unknown){
-            throw new Exception("Failed to create new user", ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+            throw new Exception("Failed to create new user", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }    
         
 
@@ -75,7 +75,7 @@ export class User{
         return this._password_hash
     }
 
-    get role(): Params.User.Role{
+    get role(): Types.User.Role{
         return this._role
     }
 

@@ -1,5 +1,5 @@
 import HttpStatus from 'http-status-codes';
-import { ExceptionType } from './Shared';
+import { Types } from '../Types';
 
 
 /**
@@ -9,7 +9,7 @@ export class Exception{
     /**
      * The type of exception (see ExceptionType)
      */
-    private _type: ExceptionType;
+    private _type: Types.ExceptionType;
     /**
      * Information about the exact line of code that caused the internal exception
      */
@@ -34,7 +34,7 @@ export class Exception{
      * @param {ExceptionType} type - The type of exception
      * @param {number} reponseStatus - The status of the response to be send to the requester
      */
-    constructor(message: string, type: ExceptionType = ExceptionType.RuntimeError, reponseStatus: number = HttpStatus.INTERNAL_SERVER_ERROR, error?: Error){
+    constructor(message: string, type: Types.ExceptionType = Types.ExceptionType.RuntimeError, reponseStatus: number = HttpStatus.INTERNAL_SERVER_ERROR, error?: Error){
         this._type = type
         this._code = this.codeInfo()
         this._responseStatus = reponseStatus
@@ -87,7 +87,7 @@ export class Exception{
         return this._message;
     }
 
-    get type(): ExceptionType{
+    get type(): Types.ExceptionType{
         return this._type;
     }
 

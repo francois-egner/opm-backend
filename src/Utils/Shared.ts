@@ -30,4 +30,4 @@ export const checkForUndefined = (ob: any): boolean =>{
     RuntimeError = "Runtime",
     Unknown = "Unknown",
     ParameterError = "Parameter"
-}
+  }

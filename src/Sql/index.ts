@@ -1,6 +1,6 @@
 import pgPromise, { IDatabase, QueryFile } from "pg-promise"
 import { join as joinPath} from 'path'
-import {Params} from "../Params"
+import {Types} from "../Types"
 import { logger } from "../Utils/Logger"
 
 export let connection: IDatabase<any>
@@ -24,6 +24,10 @@ export async function disconnect(): Promise<void>{
 
 export const userQueries = {
     create: readSQL("/User/create.sql")
+}
+
+export const elementQueries = {
+    create: readSQL("/Element/create.sql")
 }
 
 /**
