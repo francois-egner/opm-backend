@@ -87,7 +87,7 @@ export namespace Types{
             }
 
             /**
-             * @param id Unique identifier of element to be found 
+             * @param id Unique identifier of element to be found
              */
              export interface exists{
                 id: number
@@ -95,9 +95,11 @@ export namespace Types{
 
             /**
              * @param id Unique identifier of element to be deleted
+             * @param connection Connection/Transaction for queyring
              */
             export interface deleteById{
-                id: number
+                id: number,
+                connection?: CustomConnection
             }
         }
     }

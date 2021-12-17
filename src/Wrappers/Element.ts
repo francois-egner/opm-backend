@@ -3,7 +3,6 @@ import { elementQueries } from "../Sql/index"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { connection as conn } from "../Sql"
-import { TypeOfExpression } from "typescript"
 
 /**
  * An Element is a part of a section. It represents an information that should be stored in a section.
@@ -103,7 +102,7 @@ export class Element{
      * @param id Unique identifier to check existence for 
      * @returns true if an element with the provided id was found, else false
      */
-    static async exists({id}: Types.Element.Params.exists){
+    static async exists({id}: Types.Element.Params.exists): Promise<boolean>{
         try{
             const existsData = await conn.one(elementQueries.exists, [id])
             return existsData.exists
@@ -112,7 +111,22 @@ export class Element{
         }
     }
 
+    /**
+     * Deletes the element with provided unique identifier
+     * @param id Unique identifier of element to be deleted
+     * @param connection Connection/Transaction for queyring
+     */
+    static async deleteById({id, connection = conn} : Types.Element.Params.deleteById): Promise <void>{
+        const exists = await this.exists({id: id})
+        if(!exists) throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
+        try{
+            const queryData = [id]
+            await connection.none(elementQueries.delteById, queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to delete element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
 
     //#region Getters & Setters
     get id(): number{

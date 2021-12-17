@@ -1,0 +1,1 @@
+DELETE FROM "Category".elements WHERE id=$1;
