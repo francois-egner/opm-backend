@@ -1,0 +1,1 @@
+DELETE FROM "Category".sections WHERE id=$1;

@@ -49,6 +49,55 @@ export namespace Types{
         }
     }
 
+    export namespace Section{
+        export namespace Params{
+
+            /**
+             * @param name Name of new section
+             * @param pos_index Position (index) of section inside an entry
+             * @param entry_id Unique identifier of entry the section is assigned to
+             */
+            export interface create{
+                name: string,
+                pos_index: number,
+                entry_id: number
+                connection?: CustomConnection
+            }
+
+            /**
+             * @param id Unique identifier of section to check existence for
+             */
+            export interface exists{
+                id: number
+            }
+            
+            /**
+             * @param id Unique identifier of section all elements should be returned from
+             * @param flat If true, only ids of elements will be returned
+             */
+            export interface getElements{
+                id: number,
+                flat?: boolean
+            }
+
+            /**
+             * @param id Unique identifier of section to be found
+             */
+            export interface findById{
+                id: number
+            }
+
+            /**
+             * @param id Unique identifier of section to be deleted
+             * @param transaction Transaction for querying
+             */
+            export interface deleteById{
+                id: number,
+                transaction?: ITask<any>
+            }
+        }
+    }
+
     export namespace Element{
 
         /**

@@ -1,0 +1,1 @@
+SELECT * FROM "Category".elements WHERE section_id = $1;

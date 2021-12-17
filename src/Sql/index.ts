@@ -26,6 +26,15 @@ export const userQueries = {
     create: readSQL("/User/create.sql")
 }
 
+export const sectionQueries = {
+    create: readSQL("/Section/create.sql"),
+    exists: readSQL("/Section/exists.sql"),
+    findById: readSQL("/Section/findById.sql"),
+    getElements: readSQL("/Section/getElements.sql"),
+    getElementsFlat: readSQL("/Section/getElementsFlat.sql"),
+    deleteById: readSQL("/Section/deleteById.sql")
+}
+
 export const elementQueries = {
     create: readSQL("/Element/create.sql"),
     findById: readSQL("/Element/findById.sql"),

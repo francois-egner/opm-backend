@@ -85,7 +85,7 @@ export class Element{
     */
     static async findById({id} : Types.Element.Params.findById): Promise<Element|null>{
         const exists = await this.exists({id: id})
-        if(exists) return null
+        if(!exists) return null
 
         try{
             const queryData = [id]

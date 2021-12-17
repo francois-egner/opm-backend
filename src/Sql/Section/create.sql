@@ -1,0 +1,1 @@
+INSERT INTO "Category".sections (name, pos_index, entry_id) VALUES ($1, $2, $3) RETURNING *;
