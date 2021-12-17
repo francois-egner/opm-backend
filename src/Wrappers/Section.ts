@@ -8,12 +8,24 @@ import {Element} from "./Element"
 
 export class Section{
 
+    /**
+     * Unique identifier of section
+     */
     private _id: number
 
+    /**
+     * Name of section. Its like a title
+     */
     private _name: string
 
+    /**
+     * Position (index) inside the associated entry
+     */
     private _pos_index: number
 
+    /**
+     * Unique identifier of entry the section is associated with/is part of
+     */
     private _entry_id: number
 
     constructor(id: number, name: string, pos_index: number, entry_id: number){
@@ -132,6 +144,11 @@ export class Section{
         }
     }
 
+
+
+    //TODO: Add element to section
+    //TODO: Remove element from section
+    //TODO: Reposition element inside section
 
     //#region Getters & Setters
     get id(): number{
