@@ -39,7 +39,8 @@ export const elementQueries = {
     create: readSQL("/Element/create.sql"),
     findById: readSQL("/Element/findById.sql"),
     exists: readSQL("/Element/exists.sql"),
-    delteById: readSQL("/Element/deleteById.sql")
+    delteById: readSQL("/Element/deleteById.sql"),
+    changePosition: readSQL("/Element/changePosition.sql")
 }
 
 /**
