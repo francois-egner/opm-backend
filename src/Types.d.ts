@@ -227,5 +227,22 @@ export namespace Types{
             }
         }
     }
+
+    export namespace Entry{
+        export namespace Params{
+            export interface create{
+                title: string,
+                tags: string[],
+                pos_index?: number,
+                category_id?: number,
+                icon?: string,
+                transaction?: ITask<any>
+            }
+
+            export interface exists{
+                id: number
+            }
+        }
+    }
 }
 

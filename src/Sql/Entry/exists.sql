@@ -1,0 +1,1 @@
+SELECT EXISTS (SELECT id FROM "Category".entries WHERE id=$1);

@@ -43,6 +43,11 @@ export const elementQueries = {
     changePosition: readSQL("/Element/changePosition.sql")
 }
 
+export const entryQueries = {
+    create: readSQL("/Entry/create.sql"),
+    exists: readSQL("/Entry/exists.sql")
+}
+
 /**
  * Reads in an SQL file
  * @param file Relative path to SQL file
