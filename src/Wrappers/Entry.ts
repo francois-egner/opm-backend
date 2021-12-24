@@ -51,6 +51,21 @@ export class Entry{
         }
     }
 
+    static async findById({id} : Types.Entry.Params.findById) : Promise<Entry | null>{
+
+        try{
+            const entryData = await conn.oneOrNone(entryQueries.findById, [id])
+            if(entryData == null)
+                return null
+            
+            const sections = await Entry.getSections({id: id, flat: false})
+            
+            return new Entry(id, entryData.title, entryData.tags, entryData.pos_index, entryData.icon, entryData.category_id, sections == null ? undefined : sections)
+        }catch(err: unknown){
+            throw new Exception("Failed to find entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
     static async exists({id} : Types.Entry.Params.exists): Promise<boolean>{
         
         try{
@@ -60,6 +75,52 @@ export class Entry{
             throw new Exception("Failed to check for existence of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+    static async getSections({id, flat=true} : Types.Entry.Params.getSections): Promise<Section[] | number[] | null>{
+        const exists = await Entry.exists({id: id})
+        if(!exists) 
+            throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        try{
+            const queryData = [id]
+            const sections_data = await conn.manyOrNone(entryQueries.getSections, queryData)
+
+            if (sections_data == null)
+                return null
+
+            const sections: Section[] | number[] = []
+            for (const section_data of sections_data){
+                sections.push(flat? section_data.id : await Section.findById({id: section_data.id}))
+            }
+            
+            return sections
+
+        }catch(err: unknown){
+            throw new Exception("Failed to get sections of entry!", Types.ExceptionType.ParameterError, HttpStatus.INTERNAL_SERVER_ERROR)
+        }
+    }
+
+    static async deleteById({id, transaction} : Types.Entry.Params.deleteById) : Promise<void>{
+        const exists = await Entry.exists({id: id})
+        if(!exists) 
+            throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+
+        //Atomicity needed here
+        await conn.tx(async (tx)=>{
+            transaction = transaction ? transaction : tx
+            const sections_id = await Entry.getSections({id: id}) as number[]
+
+            for(const section_id of sections_id)
+                await Section.deleteById({id: section_id, transaction: transaction})
+            
+            await transaction!.none(entryQueries.deleteById, [id])
+        })
+    }
+
+    //TODO: addSection()
+    //TODO: removeSection()
+    //TODO: repositionSection()
+    //TODO: moveSection()
 
 
     //#region Getters & Setters

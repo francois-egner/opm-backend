@@ -1,0 +1,1 @@
+SELECT * FROM "Category".entries WHERE id=$1;

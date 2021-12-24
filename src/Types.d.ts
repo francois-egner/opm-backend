@@ -239,6 +239,20 @@ export namespace Types{
                 transaction?: ITask<any>
             }
 
+            export interface deleteById{
+                id: number,
+                transaction?: ITask<any>
+            }
+
+            export interface findById{
+                id: number
+            }
+
+            export interface getSections{
+                id: number,
+                flat?: boolean
+            }
+
             export interface exists{
                 id: number
             }

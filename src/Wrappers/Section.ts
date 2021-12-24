@@ -90,6 +90,7 @@ export class Section{
 
         try{
             const sectionData = await conn.one(sectionQueries.findById, [id])
+            //FIXME: getElements() might be null
             const elements = await this.getElements({id:id, flat:false}) as Element[]
             return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id, elements)
         }catch(err: unknown){

@@ -45,7 +45,10 @@ export const elementQueries = {
 
 export const entryQueries = {
     create: readSQL("/Entry/create.sql"),
-    exists: readSQL("/Entry/exists.sql")
+    exists: readSQL("/Entry/exists.sql"),
+    deleteById: readSQL("/Entry/deleteById.sql"),
+    findById: readSQL("/Entry/findById.sql"),
+    getSections: readSQL("/Entry/getSections.sql")
 }
 
 /**
