@@ -1,5 +1,6 @@
 import { IDatabase, ITask } from "pg-promise";
-import { NumericLiteral } from "typescript";
+import {Element as ElementClass} from './Wrappers/Element'
+import {Section as SectionClass} from './Wrappers/Section'
 
 
 /**
@@ -49,6 +50,133 @@ export namespace Types{
         }
     }
 
+    export namespace Section{
+        export namespace Params{
+
+            /**
+             * @param name Name of new section
+             * @param pos_index Position (index) of section inside an entry
+             * @param entry_id Unique identifier of entry the section is assigned to
+             */
+            export interface create{
+                name: string,
+                pos_index: number,
+                entry_id?: number
+                connection?: CustomConnection
+            }
+
+            /**
+             * @param id Unique identifier of section to check existence for
+             */
+            export interface exists{
+                id: number
+            }
+
+            /**
+             * @param id Unique identifier of section the element should be added to
+             * @param element Instance of element to be added to section
+             * @param pos_index Position (index) where the element should be place to
+             * @param transaction Transaction for querying
+             */
+            export interface addElement{
+                id: number,
+                element: ElementClass,
+                pos_index?: number,
+                transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of section to change entry_id from
+             * @param entry_id Unique identifier of new entry
+             * @param transaction Transaction for querying
+             */
+            export interface setEntry{
+                id: number,
+                new_entry_id: number,
+                transaction?: ITask<any>
+            }
+
+            
+
+            /**
+             * @param id Unique identifier of section to change position from
+             * @param pos_index New position (index) for section
+             * @param transaction Transaction for querying 
+             */
+            export interface setPosition{
+                id: number,
+                new_pos: number,
+                transaction?: ITask<any>
+            }
+
+            /**
+             * id Unique identifier of section
+             * element_id Unique identifier of element to be removed from section
+             * transaction Transaction for querying
+             */
+            export interface removeElement{
+                id: number,
+                element_id: number,
+                transaction? : ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of section the element should be moved from
+             * @param element_id Unique identifier of the element to be moved
+             * @param new_section_id Unique identifier of section the element should be moved to
+             * @param new_pos_index Position (index) of element in section the element will be moved to
+             * @param transaction Transaction for querying
+             */
+            export interface moveElement{
+                id: number,
+                element_id: number,
+                new_section_id: number,
+                new_pos?: number,
+                transaction?: ITask<any>
+            }
+
+
+            /**
+             * @param id Unique identifier of section
+             * @param element_id Unique identifier of element to be repositioned
+             * @param new_pos_index Position (index) the element should be moved to
+             * @param transaction Transaction for querying
+            */
+            export interface repositionElement{
+                id: number,
+                element_id: number,
+                new_pos: number,
+                transaction?: ITask<any>
+            }
+
+                        
+            /**
+             * @param id Unique identifier of section all elements should be returned from
+             * @param flat If true, only ids of elements will be returned
+             */
+            export interface getElements{
+                id: number,
+                flat?: boolean
+            }
+
+            /**
+             * @param id Unique identifier of section to be found
+             */
+            export interface findById{
+                id: number
+            }
+
+            /**
+             * @param id Unique identifier of section to be deleted
+             * @param transaction Transaction for querying
+             */
+            export interface deleteById{
+                id: number,
+                transaction?: ITask<any>
+            }
+        }
+    }
+
     export namespace Element{
 
         /**
@@ -75,7 +203,6 @@ export namespace Types{
                 value: string,
                 type: ElementType,
                 pos_index?: number,
-                section_id: number,
                 connection?: CustomConnection
             }
             
@@ -84,6 +211,28 @@ export namespace Types{
              */
             export interface findById{
                 id: number
+            }
+
+            /**
+            * @param id Unique identifier of element to change position of
+            * @param new_pos New position (index)
+            * @param transaction Transaction for querying
+            */
+            export interface changePosition{
+                id: number,
+                new_pos: number,
+                transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of element to be moved to another section
+             * @param new_section_id Unique identifier of section the element should be moved to
+             * @param transaction Transaction for querying
+             */
+            export interface changeSection{
+                id: number,
+                new_section_id: number,
+                transaction?: ITask<any>
             }
 
             /**
@@ -100,6 +249,65 @@ export namespace Types{
             export interface deleteById{
                 id: number,
                 connection?: CustomConnection
+            }
+        }
+    }
+
+    export namespace Entry{
+        export namespace Params{
+            export interface create{
+                title: string,
+                tags: string[],
+                pos_index?: number,
+                category_id?: number,
+                icon?: string,
+                transaction?: ITask<any>
+            }
+
+            export interface addSection{
+                id: number,
+                section: SectionClass,
+                pos_index?: number,
+                transaction?: ITask<any>
+            }
+
+            export interface removeSection{
+                id: number,
+                section_id: number,
+                transaction?: ITask<any>
+            }
+
+            export interface moveSection{
+                id: number,
+                section_id: number,
+                new_entry_id: number,
+                new_pos: number,
+                transaction? : ITask<any>
+            }
+
+            export interface repositionSection{
+                id: number,
+                section_id: number,
+                new_pos: number,
+                transaction?: ITask<any>
+            }
+
+            export interface deleteById{
+                id: number,
+                transaction?: ITask<any>
+            }
+
+            export interface findById{
+                id: number
+            }
+
+            export interface getSections{
+                id: number,
+                flat?: boolean
+            }
+
+            export interface exists{
+                id: number
             }
         }
     }

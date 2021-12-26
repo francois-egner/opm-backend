@@ -3,6 +3,7 @@ import { elementQueries } from "../Sql/index"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { connection as conn } from "../Sql"
+import { Section } from "../Wrappers/Section"
 
 /**
  * An Element is a part of a section. It represents an information that should be stored in a section.
@@ -68,10 +69,10 @@ export class Element{
     * @param section_id Unique identifier of section the new element will be part of
     * @param connection Task/Transaction for querying
     */
-    static async create({name, value, type, pos_index = 0, section_id, connection=conn} : Types.Element.Params.create): Promise<Element>{
+    static async create({name, value, type, pos_index = 0, connection=conn} : Types.Element.Params.create): Promise<Element>{
         //TODO: Check if section exists
         try{              
-            const queryData = [name,value, type, pos_index, section_id]
+            const queryData = [name,value, type, pos_index, -1]
             const elementData = await connection.one(elementQueries.create, queryData)
             return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
         }catch(err: unknown){
@@ -85,7 +86,7 @@ export class Element{
     */
     static async findById({id} : Types.Element.Params.findById): Promise<Element|null>{
         const exists = await this.exists({id: id})
-        if(exists) return null
+        if(!exists) return null
 
         try{
             const queryData = [id]
@@ -98,10 +99,10 @@ export class Element{
     }
 
     /**
-     * Checks for existence of an element with the provided unique identifier
-     * @param id Unique identifier to check existence for 
-     * @returns true if an element with the provided id was found, else false
-     */
+    * Checks for existence of an element with the provided unique identifier
+    * @param id Unique identifier to check existence for 
+    * @returns true if an element with the provided id was found, else false
+    */
     static async exists({id}: Types.Element.Params.exists): Promise<boolean>{
         try{
             const existsData = await conn.one(elementQueries.exists, [id])
@@ -112,10 +113,10 @@ export class Element{
     }
 
     /**
-     * Deletes the element with provided unique identifier
-     * @param id Unique identifier of element to be deleted
-     * @param connection Connection/Transaction for queyring
-     */
+    * Deletes the element with provided unique identifier
+    * @param id Unique identifier of element to be deleted
+    * @param connection Connection/Transaction for queyring
+    */
     static async deleteById({id, connection = conn} : Types.Element.Params.deleteById): Promise <void>{
         const exists = await this.exists({id: id})
         if(!exists) throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -125,6 +126,49 @@ export class Element{
             await connection.none(elementQueries.delteById, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to delete element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    /**
+    * Changes position (index) of element with provided unique identifier
+    * @param id Unique identifier of element to change position of
+    * @param new_pos New position (index)
+    * @param transaction Transaction for querying
+    */
+    static async changePosition({id, new_pos, transaction}:Types.Element.Params.changePosition) : Promise<void>{
+        const exists = await Element.exists({id: id})
+        if(!exists) throw new Exception("Failed to find element to be repositioned!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
+        const connection = transaction ? transaction : conn
+
+        try{
+            await connection.none(elementQueries.changePosition,[id, new_pos])
+        }catch(err){
+            throw new Exception("Failed to change elements position!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    /**
+    * 
+    * @param id Unique identifier of element to be moved to another section
+    * @param new_section_id Unique identifier of section the element should be moved to
+    * @param transaction Transaction for querying
+    */
+    static async changeSection({id, new_section_id, transaction}: Types.Element.Params.changeSection){
+        let exists = await Section.exists({id: new_section_id})
+        if(!exists && new_section_id != -1) 
+            throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
+        exists = await Element.exists({id: id})
+        if(!exists) throw new Exception("Failed to find element!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+
+        const connection = transaction ? transaction : conn
+
+        try{
+            const queryData = [id, new_section_id]
+            await connection.none('UPDATE "Category".elements SET section_id=$2 WHERE id=$1;', queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change section_id of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 

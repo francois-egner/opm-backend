@@ -1,0 +1,1 @@
+SELECT EXISTS (SELECT id FROM "Category".sections WHERE id=$1);
