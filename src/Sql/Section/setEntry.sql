@@ -1,0 +1,1 @@
+UPDATE "Category".sections SET entry_id=$2 WHERE id=$1;

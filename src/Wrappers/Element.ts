@@ -156,7 +156,8 @@ export class Element{
     */
     static async changeSection({id, new_section_id, transaction}: Types.Element.Params.changeSection){
         let exists = await Section.exists({id: new_section_id})
-        if(!exists) throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        if(!exists && new_section_id != -1) 
+            throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
         exists = await Element.exists({id: id})
         if(!exists) throw new Exception("Failed to find element!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)

@@ -4,6 +4,7 @@ import { checkForUndefined } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import {Element} from "./Element"
+import { Entry } from "./Entry"
 
 
 export class Section{
@@ -48,10 +49,10 @@ export class Section{
     * @param pos_index Position (index) of section inside an entry
     * @param entry_id Unique identifier of entry the section is assigned to
     */
-    static async create({name, pos_index, entry_id, connection=conn } : Types.Section.Params.create): Promise<Section>{
+    static async create({name, pos_index, entry_id=-1, connection=conn } : Types.Section.Params.create): Promise<Section>{
         //TODO: Check entry_id for validation? Not necessary if section is added by a member function of Entry?
         //TODO: Proper param validation
-        if (!checkForUndefined({name, pos_index, entry_id})) throw new Exception("Failed to create new section. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        if (!checkForUndefined({name, entry_id})) throw new Exception("Failed to create new section. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
             const queryData = [name, pos_index, entry_id]
@@ -165,7 +166,8 @@ export class Section{
         //TODO: More parameter validation
         const section = await Section.findById({id: id})
 
-        if(section == null) throw new Exception("Section to add element to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        if(section == null) 
+            throw new Exception("Section to add element to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
         const elements_count = section!.elements.length
 
@@ -297,37 +299,71 @@ export class Section{
         })
     }
 
+    
+
     //#region Getters & Setters
-    get id(): number{
-        return this._id
+
+    /**
+     * Sets new entry of section
+     * @param id Unique identifier of section to change entry_id from
+     * @param entry_id Unique identifier of new entry
+     * @param transaction Transaction for querying
+    */
+     static async setEntry({id, new_entry_id, transaction} : Types.Section.Params.setEntry): Promise<void>{
+        let exists = await Entry.exists({id: new_entry_id})
+        if(!exists && new_entry_id != -1)
+            throw new Exception("Failed to find entry to be associated with the section!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+
+        exists = await Section.exists({id: id})
+        if(!exists)
+            throw new Exception("No section with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+
+        const queryObject = transaction ? transaction : conn
+        try{
+            const queryData = [id, new_entry_id]
+            await queryObject.none(sectionQueries.setEntry, queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change elements entry_id!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
     }
 
-    set id( id: number){
-        this._id = id
+    /**
+     * Sets new position of section
+     * @param id Unique identifier of section to change position from
+     * @param pos_index New position (index) for section
+     * @param transaction Transaction for querying 
+    */
+    static async setPosition({id, new_pos, transaction} : Types.Section.Params.setPosition) : Promise<void>{
+        const exists = await Section.exists({id: id})
+        if(!exists)
+            throw new Exception("No section with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        const queryObject = transaction ? transaction : conn
+        try{
+            const queryData = [id, new_pos]
+            await queryObject.none(sectionQueries.setPosition, queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change position of section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+
+
+
+    get id(): number{
+        return this._id
     }
 
     get title(): string{
         return this._name
     }
     
-    set title(title: string){
-        this._name = title
-    }
-
     get pos_index(): number{
         return this._pos_index
     }
 
-    set pos_index(pos_index: number){
-        this._pos_index = pos_index
-    }
-
     get entry_id(): number{
         return this._entry_id
-    }
-
-    set entry_id(entry_id: number){
-        this._entry_id = entry_id
     }
 
     get elements():Element[]{

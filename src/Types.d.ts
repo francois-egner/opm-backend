@@ -1,5 +1,6 @@
 import { IDatabase, ITask } from "pg-promise";
 import {Element as ElementClass} from './Wrappers/Element'
+import {Section as SectionClass} from './Wrappers/Section'
 
 
 /**
@@ -60,7 +61,7 @@ export namespace Types{
             export interface create{
                 name: string,
                 pos_index: number,
-                entry_id: number
+                entry_id?: number
                 connection?: CustomConnection
             }
 
@@ -81,6 +82,30 @@ export namespace Types{
                 id: number,
                 element: ElementClass,
                 pos_index?: number,
+                transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of section to change entry_id from
+             * @param entry_id Unique identifier of new entry
+             * @param transaction Transaction for querying
+             */
+            export interface setEntry{
+                id: number,
+                new_entry_id: number,
+                transaction?: ITask<any>
+            }
+
+            
+
+            /**
+             * @param id Unique identifier of section to change position from
+             * @param pos_index New position (index) for section
+             * @param transaction Transaction for querying 
+             */
+            export interface setPosition{
+                id: number,
+                new_pos: number,
                 transaction?: ITask<any>
             }
 
@@ -236,6 +261,34 @@ export namespace Types{
                 pos_index?: number,
                 category_id?: number,
                 icon?: string,
+                transaction?: ITask<any>
+            }
+
+            export interface addSection{
+                id: number,
+                section: SectionClass,
+                pos_index?: number,
+                transaction?: ITask<any>
+            }
+
+            export interface removeSection{
+                id: number,
+                section_id: number,
+                transaction?: ITask<any>
+            }
+
+            export interface moveSection{
+                id: number,
+                section_id: number,
+                new_entry_id: number,
+                new_pos: number,
+                transaction? : ITask<any>
+            }
+
+            export interface repositionSection{
+                id: number,
+                section_id: number,
+                new_pos: number,
                 transaction?: ITask<any>
             }
 

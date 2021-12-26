@@ -32,7 +32,9 @@ export const sectionQueries = {
     findById: readSQL("/Section/findById.sql"),
     getElements: readSQL("/Section/getElements.sql"),
     getElementsFlat: readSQL("/Section/getElementsFlat.sql"),
-    deleteById: readSQL("/Section/deleteById.sql")
+    deleteById: readSQL("/Section/deleteById.sql"),
+    setPosition: readSQL("/Section/setPosition.sql"),
+    setEntry: readSQL("/Section/setEntry.sql")
 }
 
 export const elementQueries = {
