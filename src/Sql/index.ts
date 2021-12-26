@@ -2,6 +2,7 @@ import pgPromise, { IDatabase, QueryFile } from "pg-promise"
 import { join as joinPath} from 'path'
 import {Types} from "../Types"
 import { logger } from "../Utils/Logger"
+import { read } from "fs"
 
 export let connection: IDatabase<any>
 
@@ -41,8 +42,12 @@ export const elementQueries = {
     create: readSQL("/Element/create.sql"),
     findById: readSQL("/Element/findById.sql"),
     exists: readSQL("/Element/exists.sql"),
-    delteById: readSQL("/Element/deleteById.sql"),
-    changePosition: readSQL("/Element/changePosition.sql")
+    deleteById: readSQL("/Element/deleteById.sql"),
+    setPosition: readSQL("/Element/setPosition.sql"),
+    setSection: readSQL("/Element/setSection.sql"),
+    setName: readSQL("/Element/setName.sql"),
+    setValue: readSQL("/Element/setValue.sql"),
+    setType: readSQL("/Element/setType.sql")
 }
 
 export const entryQueries = {

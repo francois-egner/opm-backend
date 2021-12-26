@@ -65,16 +65,14 @@ export class Element{
     * @param name Name of new element
     * @param value Actual value of new element
     * @param type Type of element (e.g. password, cleartext etc.)
-    * @param pos_index Position (index) of element in section
-    * @param section_id Unique identifier of section the new element will be part of
     * @param connection Task/Transaction for querying
     */
-    static async create({name, value, type, pos_index = 0, transaction} : Types.Element.Params.create): Promise<Element>{
-        //TODO: Check if section exists
+    static async create({name, value, type, transaction} : Types.Element.Params.create): Promise<Element>{
+        
         try{
             const queryObject = transaction ? transaction : conn
 
-            const queryData = [name,value, type, pos_index, -1]
+            const queryData = [name,value, type]
             const elementData = await queryObject.one(elementQueries.create, queryData)
             return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
         }catch(err: unknown){
@@ -126,38 +124,24 @@ export class Element{
         try{
             const queryObject = transaction ? transaction : conn
             const queryData = [id]
-            await queryObject.none(elementQueries.delteById, queryData)
+            await queryObject.none(elementQueries.deleteById, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to delete element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
-    /**
-    * Changes position (index) of element with provided unique identifier
-    * @param id Unique identifier of element to change position of
-    * @param new_pos New position (index)
-    * @param transaction Transaction for querying
-    */
-    static async changePosition({id, new_pos, transaction}:Types.Element.Params.changePosition) : Promise<void>{
-        const exists = await Element.exists({id: id})
-        if(!exists) throw new Exception("Failed to find element to be repositioned!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-        
-        const queryObject = transaction ? transaction : conn
+    
 
-        try{
-            await queryObject.none(elementQueries.changePosition,[id, new_pos])
-        }catch(err){
-            throw new Exception("Failed to change elements position!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
-    }
+    
+    //#region Getters & Setters
 
     /**
-    * 
+    * Sets new section of an element
     * @param id Unique identifier of element to be moved to another section
     * @param new_section_id Unique identifier of section the element should be moved to
     * @param transaction Transaction for querying
     */
-    static async changeSection({id, new_section_id, transaction}: Types.Element.Params.changeSection){
+    static async setSection({id, new_section_id, transaction}: Types.Element.Params.setSection){
         let exists = await Section.exists({id: new_section_id})
         if(!exists && new_section_id != -1) 
             throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -170,13 +154,77 @@ export class Element{
 
         try{
             const queryData = [id, new_section_id]
-            await queryObject.none('UPDATE "Category".elements SET section_id=$2 WHERE id=$1;', queryData)
+            await queryObject.none(elementQueries.setSection, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to change section_id of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+    
+    /**
+    * Sets new position (index) of an element
+    * @param id Unique identifier of element to change position of
+    * @param new_pos New position (index)
+    * @param transaction Transaction for querying
+    */
+    static async setPosition({id, new_pos_index, transaction}:Types.Element.Params.setPosition) : Promise<void>{
+        const exists = await Element.exists({id: id})
+        if(!exists) throw new Exception("Failed to find element to be repositioned!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
+        const queryObject = transaction ? transaction : conn
 
-    //#region Getters & Setters
+        try{
+            await queryObject.none(elementQueries.setPosition,[id, new_pos_index])
+        }catch(err){
+            throw new Exception("Failed to change elements position!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    static async setName({id, new_name, transaction} : Types.Element.Params.setName) : Promise<void>{
+        //TODO: Parameter validation
+        const exists = await Element.exists({id: id})
+        if(!exists)
+            throw new Exception("Failed to find element to change name of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        try{
+            const queryObject = transaction ? transaction : conn
+            const queryData = [id, new_name]
+
+            await queryObject.none(elementQueries.setName, queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change name of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    static async setValue({id, new_value, transaction}: Types.Element.Params.setValue) : Promise<void>{
+        const exists = await Element.exists({id: id})
+        if(!exists)
+            throw new Exception("Failed to find element to change value of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        try{
+            const queryObject = transaction ? transaction : conn
+            const queryData = [id, new_value]
+
+            await queryObject.none(elementQueries.setValue, queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change value of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    static async setType({id, new_type, transaction} : Types.Element.Params.setType) : Promise<void>{
+        const exists = await Element.exists({id: id})
+        if(!exists)
+            throw new Exception("Failed to find element to change type of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        try{
+            const queryObject = transaction ? transaction : conn
+            const queryData = [id, new_type]
+
+            await queryObject.none(elementQueries.setType, queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change type of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
     get id(): number{
         return this._id
     }
@@ -185,40 +233,20 @@ export class Element{
         return this._name
     }
 
-    set name(name: string){
-        this._name = name
-    }
-
     get value(): string{
         return this._value
-    }
-
-    set value(value: string){
-        this._value = value
     }
 
     get type(): Types.Element.ElementType{
         return this._type
     }
 
-    set type(type: Types.Element.ElementType){
-        this._type = type
-    }
-
     get section_id(): number{
         return this._section_id
     }
 
-    set section_id(section_id: number){
-        this._section_id = section_id
-    }
-
     get pos_index(): number{
         return this._pos_index
-    }
-
-    set pos_index(pos_index: number){
-        this._pos_index = pos_index
     }
     //#endregion
 }

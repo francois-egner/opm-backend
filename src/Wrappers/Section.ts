@@ -185,11 +185,11 @@ export class Section{
             
             for (const element of section!.elements){
                 if(element.pos_index >= pos_index!)
-                    await Element.changePosition({id: element.id, new_pos: element.pos_index+1, transaction: transaction})
+                    await Element.setPosition({id: element.id, new_pos_index: element.pos_index+1, transaction: transaction})
             }
     
-            await Element.changeSection({id: element.id, new_section_id: id, transaction: transaction})
-            await Element.changePosition({id: element.id, new_pos: pos_index!, transaction: transaction})
+            await Element.setSection({id: element.id, new_section_id: id, transaction: transaction})
+            await Element.setPosition({id: element.id, new_pos_index: pos_index!, transaction: transaction})
         })
         
 
@@ -218,7 +218,7 @@ export class Section{
 
             for(const element of elements){
                 if(element.pos_index > element_to_remove.pos_index)
-                    await Element.changePosition({id: element.id, new_pos: element.pos_index-1, transaction: transaction})
+                    await Element.setPosition({id: element.id, new_pos_index: element.pos_index-1, transaction: transaction})
 
             }
 
@@ -252,11 +252,11 @@ export class Section{
             for (const element of elements){
                 if((element.pos_index <= new_pos) && (element.pos_index > element_to_reposition.pos_index)){
                     console.log(`${element.pos_index} -> ${element.pos_index-1}`)
-                    await Element.changePosition({id: element.id, new_pos: element.pos_index-1, transaction: transaction})
+                    await Element.setPosition({id: element.id, new_pos_index: element.pos_index-1, transaction: transaction})
                 }
             }
 
-            await Element.changePosition({id: element_id, new_pos: new_pos, transaction: transaction})
+            await Element.setPosition({id: element_id, new_pos_index: new_pos, transaction: transaction})
         })
         
     }
