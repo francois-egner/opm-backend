@@ -69,11 +69,13 @@ export class Element{
     * @param section_id Unique identifier of section the new element will be part of
     * @param connection Task/Transaction for querying
     */
-    static async create({name, value, type, pos_index = 0, connection=conn} : Types.Element.Params.create): Promise<Element>{
+    static async create({name, value, type, pos_index = 0, transaction} : Types.Element.Params.create): Promise<Element>{
         //TODO: Check if section exists
-        try{              
+        try{
+            const queryObject = transaction ? transaction : conn
+
             const queryData = [name,value, type, pos_index, -1]
-            const elementData = await connection.one(elementQueries.create, queryData)
+            const elementData = await queryObject.one(elementQueries.create, queryData)
             return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
         }catch(err: unknown){
             throw new Exception("Failed to create new element", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -117,13 +119,14 @@ export class Element{
     * @param id Unique identifier of element to be deleted
     * @param connection Connection/Transaction for queyring
     */
-    static async deleteById({id, connection = conn} : Types.Element.Params.deleteById): Promise <void>{
+    static async deleteById({id, transaction} : Types.Element.Params.deleteById): Promise <void>{
         const exists = await this.exists({id: id})
         if(!exists) throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
+            const queryObject = transaction ? transaction : conn
             const queryData = [id]
-            await connection.none(elementQueries.delteById, queryData)
+            await queryObject.none(elementQueries.delteById, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to delete element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -139,10 +142,10 @@ export class Element{
         const exists = await Element.exists({id: id})
         if(!exists) throw new Exception("Failed to find element to be repositioned!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const connection = transaction ? transaction : conn
+        const queryObject = transaction ? transaction : conn
 
         try{
-            await connection.none(elementQueries.changePosition,[id, new_pos])
+            await queryObject.none(elementQueries.changePosition,[id, new_pos])
         }catch(err){
             throw new Exception("Failed to change elements position!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -160,13 +163,14 @@ export class Element{
             throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
         exists = await Element.exists({id: id})
-        if(!exists) throw new Exception("Failed to find element!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        if(!exists) 
+            throw new Exception("Failed to find element!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-        const connection = transaction ? transaction : conn
+        const queryObject = transaction ? transaction : conn
 
         try{
             const queryData = [id, new_section_id]
-            await connection.none('UPDATE "Category".elements SET section_id=$2 WHERE id=$1;', queryData)
+            await queryObject.none('UPDATE "Category".elements SET section_id=$2 WHERE id=$1;', queryData)
         }catch(err: unknown){
             throw new Exception("Failed to change section_id of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }

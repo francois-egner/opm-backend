@@ -49,14 +49,15 @@ export class Section{
     * @param pos_index Position (index) of section inside an entry
     * @param entry_id Unique identifier of entry the section is assigned to
     */
-    static async create({name, pos_index, entry_id=-1, connection=conn } : Types.Section.Params.create): Promise<Section>{
+    static async create({name, pos_index, entry_id=-1, transaction} : Types.Section.Params.create): Promise<Section>{
         //TODO: Check entry_id for validation? Not necessary if section is added by a member function of Entry?
         //TODO: Proper param validation
         if (!checkForUndefined({name, entry_id})) throw new Exception("Failed to create new section. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
+            const queryObject = transaction ? transaction : conn
             const queryData = [name, pos_index, entry_id]
-            const sectionData = await connection.one(sectionQueries.create, queryData)
+            const sectionData = await queryObject.one(sectionQueries.create, queryData)
 
             return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
         }
@@ -141,10 +142,11 @@ export class Section{
             //Atomicity needs to be guaranteed, therefore we must use transactions from now on
             //Start a new transaction if no transaction was provided
             await conn.tx(async (tx)=>{
-                if(!transaction) transaction = tx
+                transaction = transaction ? transaction : tx
                 
                 const elements_id = await this.getElements({id: id}) as number[]
-                for(const element_id of elements_id) await Element.deleteById({id: element_id, connection:transaction})
+                for(const element_id of elements_id) 
+                    await Element.deleteById({id: element_id, transaction:transaction})
 
                 await transaction!.none(sectionQueries.deleteById, [id])
                 
@@ -289,6 +291,7 @@ export class Section{
             if(id === new_section_id){
                 if(!new_pos)
                     throw new Exception("New position must be defined when moving inside a section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+                
                 await Section.repositionElement({id: id, element_id: element_id, new_pos: new_pos, transaction: transaction})
                 return
             }

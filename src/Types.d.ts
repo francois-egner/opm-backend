@@ -57,14 +57,14 @@ export namespace Types{
              * @param name Name of new section
              * @param pos_index Position (index) of section inside an entry
              * @param entry_id Unique identifier of entry the section is assigned to
+             * @param transaction Transaction for querying
              */
             export interface create{
                 name: string,
                 pos_index: number,
                 entry_id?: number
-                connection?: CustomConnection
+                transaction?: ITask<any>
             }
-
             /**
              * @param id Unique identifier of section to check existence for
              */
@@ -196,14 +196,14 @@ export namespace Types{
             * @param type Type of element (e.g. password, cleartext etc.)
             * @param pos_index Position (index) of element in section
             * @param section_id Unique identifier of section the new element will be part of
-            * @param connection Task/Transaction for querying
+            * @param transaction Transaction for querying
             */
             export interface create{
                 name: string,
                 value: string,
                 type: ElementType,
                 pos_index?: number,
-                connection?: CustomConnection
+                transaction?: ITask<any>
             }
             
             /**
@@ -244,11 +244,11 @@ export namespace Types{
 
             /**
              * @param id Unique identifier of element to be deleted
-             * @param connection Connection/Transaction for queyring
+             * @param transaction Transaction for querying
              */
             export interface deleteById{
                 id: number,
-                connection?: CustomConnection
+                transaction?: ITask<any>
             }
         }
     }
