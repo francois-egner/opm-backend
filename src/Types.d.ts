@@ -21,6 +21,15 @@ export namespace Types{
         Unknown = "Unknown",
         ParameterError = "Parameter"
     }
+
+    export namespace Params{
+        export interface setProperty{
+            id: number,
+            property_name: string,
+            new_value: any,
+            transaction?: ITask<any>
+        }
+    }
     
     export namespace User{
         export const enum Role{
@@ -61,8 +70,6 @@ export namespace Types{
              */
             export interface create{
                 name: string,
-                pos_index: number,
-                entry_id?: number
                 transaction?: ITask<any>
             }
             /**
@@ -85,6 +92,8 @@ export namespace Types{
                 transaction?: ITask<any>
             }
 
+            
+
             /**
              * @param id Unique identifier of section to change entry_id from
              * @param entry_id Unique identifier of new entry
@@ -106,6 +115,12 @@ export namespace Types{
             export interface setPosition{
                 id: number,
                 new_pos: number,
+                transaction?: ITask<any>
+            }
+
+            export interface setName{
+                id: number,
+                new_name: string,
                 transaction?: ITask<any>
             }
 
@@ -278,6 +293,13 @@ export namespace Types{
                 pos_index?: number,
                 category_id?: number,
                 icon?: string,
+                transaction?: ITask<any>
+            }
+
+            export interface setProperty{
+                id: number,
+                property_name: string,
+                new_value: any,
                 transaction?: ITask<any>
             }
 

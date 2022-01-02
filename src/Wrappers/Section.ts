@@ -1,11 +1,12 @@
 import { Types } from "../Types"
 import { connection as conn, sectionQueries } from "../Sql"
-import { checkForUndefined } from "../Utils/Shared"
+import { checkForUndefined, formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import {Element} from "./Element"
 import { Entry } from "./Entry"
 
+const propertyNames = ["name", "pos_index", "entry_id"]
 
 export class Section{
 
@@ -39,7 +40,8 @@ export class Section{
         this._name = name
         this._pos_index = pos_index
         this._entry_id = entry_id
-        if(elements) this._elements = elements as Element[]
+        if(elements)
+            this._elements = elements as Element[]
         
     }
 
@@ -49,14 +51,16 @@ export class Section{
     * @param pos_index Position (index) of section inside an entry
     * @param entry_id Unique identifier of entry the section is assigned to
     */
-    static async create({name, pos_index, entry_id=-1, transaction} : Types.Section.Params.create): Promise<Section>{
+    static async create({name, transaction} : Types.Section.Params.create): Promise<Section>{
         //TODO: Check entry_id for validation? Not necessary if section is added by a member function of Entry?
         //TODO: Proper param validation
-        if (!checkForUndefined({name, entry_id})) throw new Exception("Failed to create new section. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        if (!checkForUndefined({name})) 
+            throw new Exception("Failed to create new section. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
             const queryObject = transaction ? transaction : conn
-            const queryData = [name, pos_index, entry_id]
+            const queryData = [name]
+
             const sectionData = await queryObject.one(sectionQueries.create, queryData)
 
             return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
@@ -185,11 +189,15 @@ export class Section{
             
             for (const element of section!.elements){
                 if(element.pos_index >= pos_index!)
-                    await Element.setPosition({id: element.id, new_pos_index: element.pos_index+1, transaction: transaction})
+                    await Element.setProperty({id: element.id, property_name:"pos_index", new_value: element.pos_index+1, transaction: transaction})    
+                    
+                //await Element.setPosition({id: element.id, new_pos_index: element.pos_index+1, transaction: transaction})
             }
-    
-            await Element.setSection({id: element.id, new_section_id: id, transaction: transaction})
-            await Element.setPosition({id: element.id, new_pos_index: pos_index!, transaction: transaction})
+            
+            await  Element.setProperty({id: element.id, property_name: "section_id", new_value: id, transaction: transaction})
+            await Element.setProperty({id: element.id, property_name: "pos_index", new_value: pos_index!, transaction: transaction})
+            // await Element.setSection({id: element.id, new_section_id: id, transaction: transaction})
+            // await Element.setPosition({id: element.id, new_pos_index: pos_index!, transaction: transaction})
         })
         
 
@@ -218,11 +226,9 @@ export class Section{
 
             for(const element of elements){
                 if(element.pos_index > element_to_remove.pos_index)
-                    await Element.setPosition({id: element.id, new_pos_index: element.pos_index-1, transaction: transaction})
-
+                    await Element.setProperty({id: element.id, property_name: "pos_index", new_value: element.pos_index-1, transaction: transaction})
             }
 
-            //await Element.deleteById({id: element_id, connection: transaction})
         })
         
 
@@ -251,12 +257,11 @@ export class Section{
 
             for (const element of elements){
                 if((element.pos_index <= new_pos) && (element.pos_index > element_to_reposition.pos_index)){
-                    console.log(`${element.pos_index} -> ${element.pos_index-1}`)
-                    await Element.setPosition({id: element.id, new_pos_index: element.pos_index-1, transaction: transaction})
+                    await Element.setProperty({id: element.id, property_name:"pos_index", new_value: element.pos_index-1, transaction: transaction})
                 }
             }
-
-            await Element.setPosition({id: element_id, new_pos_index: new_pos, transaction: transaction})
+            
+            await Element.setProperty({id: element_id, property_name:"pos_index", new_value: new_pos, transaction: transaction})
         })
         
     }
@@ -306,58 +311,33 @@ export class Section{
 
     //#region Getters & Setters
 
-    /**
-     * Sets new entry of section
-     * @param id Unique identifier of section to change entry_id from
-     * @param entry_id Unique identifier of new entry
-     * @param transaction Transaction for querying
-    */
-     static async setEntry({id, new_entry_id, transaction} : Types.Section.Params.setEntry): Promise<void>{
-        let exists = await Entry.exists({id: new_entry_id})
-        if(!exists && new_entry_id != -1)
-            throw new Exception("Failed to find entry to be associated with the section!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
-
-        exists = await Section.exists({id: id})
-        if(!exists)
-            throw new Exception("No section with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
-
-        const queryObject = transaction ? transaction : conn
-        try{
-            const queryData = [id, new_entry_id]
-            await queryObject.none(sectionQueries.setEntry, queryData)
-        }catch(err: unknown){
-            throw new Exception("Failed to change elements entry_id!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
-    }
-
-    /**
-     * Sets new position of section
-     * @param id Unique identifier of section to change position from
-     * @param pos_index New position (index) for section
-     * @param transaction Transaction for querying 
-    */
-    static async setPosition({id, new_pos, transaction} : Types.Section.Params.setPosition) : Promise<void>{
-        const exists = await Section.exists({id: id})
-        if(!exists)
-            throw new Exception("No section with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+    static async setProperty({id, property_name, new_value, transaction}: Types.Params.setProperty){
+        if(!propertyNames.includes(property_name))
+            throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const queryObject = transaction ? transaction : conn
+        const exists = await Entry.exists({id: id})
+        if(!exists)
+            throw new Exception("Unable to find section to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
         try{
-            const queryData = [id, new_pos]
-            await queryObject.none(sectionQueries.setPosition, queryData)
+
+            const queryObject = transaction ? transaction : conn
+
+            const queryString = formatString(sectionQueries.setProperty as string, property_name)
+            const queryData = [id,  new_value]
+
+            await queryObject.none(queryString, queryData)
         }catch(err: unknown){
-            throw new Exception("Failed to change position of section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+            throw new Exception("Failed to change property of section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
-
-
 
 
     get id(): number{
         return this._id
     }
 
-    get title(): string{
+    get name(): string{
         return this._name
     }
     
