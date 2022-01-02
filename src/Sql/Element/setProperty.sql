@@ -1,0 +1,1 @@
+UPDATE "Category".entries SET {0}=$2 WHERE id=$1;

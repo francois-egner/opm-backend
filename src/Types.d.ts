@@ -21,6 +21,15 @@ export namespace Types{
         Unknown = "Unknown",
         ParameterError = "Parameter"
     }
+
+    export namespace Params{
+        export interface setProperty{
+            id: number,
+            property_name: string,
+            new_value: any,
+            transaction?: ITask<any>
+        }
+    }
     
     export namespace User{
         export const enum Role{
@@ -57,14 +66,12 @@ export namespace Types{
              * @param name Name of new section
              * @param pos_index Position (index) of section inside an entry
              * @param entry_id Unique identifier of entry the section is assigned to
+             * @param transaction Transaction for querying
              */
             export interface create{
                 name: string,
-                pos_index: number,
-                entry_id?: number
-                connection?: CustomConnection
+                transaction?: ITask<any>
             }
-
             /**
              * @param id Unique identifier of section to check existence for
              */
@@ -84,6 +91,8 @@ export namespace Types{
                 pos_index?: number,
                 transaction?: ITask<any>
             }
+
+            
 
             /**
              * @param id Unique identifier of section to change entry_id from
@@ -106,6 +115,12 @@ export namespace Types{
             export interface setPosition{
                 id: number,
                 new_pos: number,
+                transaction?: ITask<any>
+            }
+
+            export interface setName{
+                id: number,
+                new_name: string,
                 transaction?: ITask<any>
             }
 
@@ -194,17 +209,16 @@ export namespace Types{
             * @param name Name of new element
             * @param value Actual value of new element
             * @param type Type of element (e.g. password, cleartext etc.)
-            * @param pos_index Position (index) of element in section
-            * @param section_id Unique identifier of section the new element will be part of
-            * @param connection Task/Transaction for querying
+            * @param transaction Transaction for querying
             */
             export interface create{
                 name: string,
                 value: string,
                 type: ElementType,
-                pos_index?: number,
-                connection?: CustomConnection
+                transaction?: ITask<any>
             }
+
+           
             
             /**
              * @param id Unique identifier of element to be found 
@@ -218,9 +232,9 @@ export namespace Types{
             * @param new_pos New position (index)
             * @param transaction Transaction for querying
             */
-            export interface changePosition{
+            export interface setPosition{
                 id: number,
-                new_pos: number,
+                new_pos_index: number,
                 transaction?: ITask<any>
             }
 
@@ -229,9 +243,27 @@ export namespace Types{
              * @param new_section_id Unique identifier of section the element should be moved to
              * @param transaction Transaction for querying
              */
-            export interface changeSection{
+            export interface setSection{
                 id: number,
                 new_section_id: number,
+                transaction?: ITask<any>
+            }
+
+            export interface setName{
+                id: number,
+                new_name: string,
+                transaction?: ITask<any>
+            }
+
+            export interface setType{
+                id: number,
+                new_type: Types.Element.ElementType,
+                transaction?: ITask<any>
+            }
+
+            export interface setValue{
+                id: number,
+                new_value: string,
                 transaction?: ITask<any>
             }
 
@@ -244,11 +276,11 @@ export namespace Types{
 
             /**
              * @param id Unique identifier of element to be deleted
-             * @param connection Connection/Transaction for queyring
+             * @param transaction Transaction for querying
              */
             export interface deleteById{
                 id: number,
-                connection?: CustomConnection
+                transaction?: ITask<any>
             }
         }
     }
@@ -261,6 +293,13 @@ export namespace Types{
                 pos_index?: number,
                 category_id?: number,
                 icon?: string,
+                transaction?: ITask<any>
+            }
+
+            export interface setProperty{
+                id: number,
+                property_name: string,
+                new_value: any,
                 transaction?: ITask<any>
             }
 

@@ -32,6 +32,7 @@
     "express": "^4.17.1",
     "http-status-codes": "^2.1.4",
     "nodemon": "^2.0.15",
+    "pg-minify": "^1.6.2",
     "pg-promise": "^10.11.1",
     "winston": "^3.3.3"
   }

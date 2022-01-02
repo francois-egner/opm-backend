@@ -1,7 +1,7 @@
 import pgPromise, { IDatabase, QueryFile } from "pg-promise"
 import { join as joinPath} from 'path'
-import {Types} from "../Types"
-import { logger } from "../Utils/Logger"
+import {readFileSync} from "fs"
+import pgMinify from "pg-minify"
 
 export let connection: IDatabase<any>
 
@@ -33,16 +33,20 @@ export const sectionQueries = {
     getElements: readSQL("/Section/getElements.sql"),
     getElementsFlat: readSQL("/Section/getElementsFlat.sql"),
     deleteById: readSQL("/Section/deleteById.sql"),
-    setPosition: readSQL("/Section/setPosition.sql"),
-    setEntry: readSQL("/Section/setEntry.sql")
+    setProperty: readSQL("/Section/setProperty.sql", true)
 }
 
 export const elementQueries = {
     create: readSQL("/Element/create.sql"),
     findById: readSQL("/Element/findById.sql"),
     exists: readSQL("/Element/exists.sql"),
-    delteById: readSQL("/Element/deleteById.sql"),
-    changePosition: readSQL("/Element/changePosition.sql")
+    deleteById: readSQL("/Element/deleteById.sql"),
+    setPosition: readSQL("/Element/setPosition.sql"),
+    setSection: readSQL("/Element/setSection.sql"),
+    setName: readSQL("/Element/setName.sql"),
+    setValue: readSQL("/Element/setValue.sql"),
+    setType: readSQL("/Element/setType.sql"),
+    setProperty: readSQL("/Element/setProperty.sql", true)
 }
 
 export const entryQueries = {
@@ -50,16 +54,21 @@ export const entryQueries = {
     exists: readSQL("/Entry/exists.sql"),
     deleteById: readSQL("/Entry/deleteById.sql"),
     findById: readSQL("/Entry/findById.sql"),
-    getSections: readSQL("/Entry/getSections.sql")
-}
+    getSections: readSQL("/Entry/getSections.sql"),
+    setProperty: readSQL("/Entry/setProperty.sql", true)
+}   
 
 /**
  * Reads in an SQL file
  * @param file Relative path to SQL file
  * @returns 
  */
-function readSQL(file: string): QueryFile {
+function readSQL(file: string, plain?: boolean): QueryFile | string {
     const fullPath: string = joinPath(__dirname, file);
+    console.log(fullPath)
+    if(plain){
+        return pgMinify(readFileSync(fullPath,`utf8`),{compress: true, removeAll:true})
+    }
     const queryFile: QueryFile = new QueryFile(fullPath, {minify: true, debug: true});
 
     return queryFile;

@@ -1,0 +1,1 @@
+UPDATE "Category".elements SET section_id=$2 WHERE id=$1;
