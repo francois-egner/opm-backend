@@ -1,0 +1,1 @@
+DELETE FROM "Category".groups WHERE id=$1;

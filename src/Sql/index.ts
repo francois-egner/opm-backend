@@ -56,7 +56,17 @@ export const entryQueries = {
     findById: readSQL("/Entry/findById.sql"),
     getSections: readSQL("/Entry/getSections.sql"),
     setProperty: readSQL("/Entry/setProperty.sql", true)
-}   
+}
+
+export const groupQueries = {
+    create: readSQL("/Group/create.sql"),
+    exists: readSQL("/Group/exists.sql"),
+    getSubGroups: readSQL("/Group/getSubGroups.sql"),
+    getEntries: readSQL("/Group/getEntries.sql"),
+    findById: readSQL("/Group/findById.sql"),
+    deleteById: readSQL("/Group/deleteById.sql"),
+    setProperty: readSQL("/Group/setProperty.sql", true)
+}
 
 /**
  * Reads in an SQL file

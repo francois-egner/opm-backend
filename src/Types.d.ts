@@ -1,6 +1,8 @@
 import { IDatabase, ITask } from "pg-promise";
 import {Element as ElementClass} from './Wrappers/Element'
 import {Section as SectionClass} from './Wrappers/Section'
+import {Entry as EntryClass} from './Wrappers/Entry'
+import {Group as GroupClass} from './Wrappers/Group'
 
 
 /**
@@ -347,6 +349,104 @@ export namespace Types{
 
             export interface exists{
                 id: number
+            }
+        }
+    }
+
+    export namespace Group{
+        export namespace Params{
+            export interface create{
+                name: string,
+                pos_index?: number,
+                icon?: string,
+                supergroup_id?: number,
+                transaction?: ITask<any>
+            }
+
+            export interface findById{
+                id: number
+            }
+
+            export interface exists{
+                id: number
+            }
+
+            export interface getSubGroups{
+                id: number,
+                flat?: boolean
+            }
+
+            export interface getEntries{
+                id: number,
+                flat?: boolean
+            }
+
+            export interface deleteById{
+                id: number,
+                transaction?: ITask<any>
+            }
+
+            export interface setProperty{
+                id: number,
+                property_name: string,
+                new_value: any,
+                transaction?: ITask<any>
+            }
+
+            export interface addEntry{
+                id: number,
+                entry: EntryClass,
+                pos_index: number,
+                transaction?: ITask<any>
+            }
+
+            export interface removeEntry{
+                id: number,
+                entry_id,
+                transaction: ITask<any>
+            }
+
+            export interface repositionEntry{
+                id: number,
+                entry_id: number,
+                new_pos: number,
+                transaction: ITask<any>
+            }
+
+            export interface moveEntry{
+                id: number,
+                entry_id: number,
+                new_group_id: number,
+                new_pos: number,
+                transaction: ITask<any>
+            }
+
+            export interface addGroup{
+                id: number,
+                group: GroupClass,
+                pos_index: number,
+                transaction: ITask<any>
+            }
+
+            export interface removeGroup{
+                id: number,
+                subgroup_id: number,
+                transaction: ITask<any>
+            }
+
+            export interface repositionGroup{
+                id: number,
+                subgroup_id: number,
+                new_pos: number,
+                transaction: ITask<any>
+            }
+
+            export interface moveGroup{
+                id: number,
+                subgroup_id: number,
+                new_supergroup_id: number,
+                new_pos: number,
+                transaction: ITask<any>
             }
         }
     }

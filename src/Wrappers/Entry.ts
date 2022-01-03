@@ -5,7 +5,7 @@ import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { Section } from '../Wrappers/Section'
 
-const propertyNames = ["name", "tags", "pos_index", "icon", "category_id"]
+const propertyNames = ["name", "tags", "pos_index", "icon", "group_id"]
      
 export class Entry{
 
@@ -21,14 +21,14 @@ export class Entry{
 
     private _sections: Section[] | number[] = []
 
-    private _category_id: number
+    private _group_id: number
 
-    constructor(id: number, title: string, tags: string[], pos_index: number, icon: string,  category_id: number, sections?: Section[] | number[]){
+    constructor(id: number, title: string, tags: string[], pos_index: number, icon: string,  group_id: number, sections?: Section[] | number[]){
         this._id = id
         this._name = title
         this._tags = tags
         this._pos_index = pos_index
-        this._category_id = category_id
+        this._group_id = group_id
         if(sections)
             this._sections = sections
         this._icon = icon
@@ -45,7 +45,7 @@ export class Entry{
             const queryData = [title, tags, icon]
             const entryData = await queryObject.one(entryQueries.create, queryData)
 
-            return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.category_id)
+            return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
         }
         catch(err: unknown){
             throw new Exception("Failed to create new Entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -61,7 +61,7 @@ export class Entry{
             
             const sections = await Entry.getSections({id: id, flat: false})
             
-            return new Entry(id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.category_id, sections == null ? undefined : sections)
+            return new Entry(id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id, sections == null ? undefined : sections)
         }catch(err: unknown){
             throw new Exception("Failed to find entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -285,7 +285,7 @@ export class Entry{
     }
 
     get category_id(): number{
-        return this._category_id
+        return this._group_id
     }
     //#endregion
 
