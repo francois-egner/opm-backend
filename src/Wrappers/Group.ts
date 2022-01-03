@@ -18,11 +18,13 @@ export class Group{
 
     private _supergroup_id: number
 
+    private _owner_id: number
+
     private _entries: Entry[] | number[] | null = []
 
     private _subGroups: Group[] | number[] | null = []
 
-    constructor(id: number, name: string, pos_index: number, icon: string, supergroup_id: number, subGroups?: Group[] | number[] | null, entries?: Entry[] | number[] | null){
+    constructor(id: number, name: string, pos_index: number, icon: string, supergroup_id: number, owner_id: number, subGroups?: Group[] | number[] | null, entries?: Entry[] | number[] | null){
         this._id = id
         this._name = name
         this._pos_index = pos_index
@@ -33,20 +35,22 @@ export class Group{
         
         if(entries)
             this._entries = entries
+        
+        this._owner_id = owner_id
     }
 
-    static async create({name, pos_index=-1, supergroup_id=-1, icon="default", transaction}:Types.Group.Params.create): Promise<Group>{
-        //TODO: Parameter validation
+    static async create({name, pos_index=-1, supergroup_id=-1, icon="default", owner_id, transaction}:Types.Group.Params.create): Promise<Group>{
+        //TODO: Parameter validation (owner_id)
         if(supergroup_id !== -1 && !(await Group.exists({id: supergroup_id})))
             throw new Exception("Provided supergroup not valid!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
         try{
             const queryObject = transaction ? transaction : conn
-            const queryData = [name, pos_index, icon, supergroup_id]
+            const queryData = [name, pos_index, icon, supergroup_id, owner_id]
 
             const groupData = await queryObject.one(groupQueries.create, queryData)
 
-            return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
+            return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, groupData.owner_id)
         }catch(err: unknown){
             throw new Exception("Failed to create new Group!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -118,7 +122,7 @@ export class Group{
             const subGroups = await Group.getSubGroups({id: id, flat: false})
             const entries = await Group.getEntries({id: id, flat: false})
 
-            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, subGroups, entries)
+            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, groupData.owner_id, subGroups, entries)
         }catch(err: unknown){
             throw new Exception("Failed to fetch group data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -150,6 +154,22 @@ export class Group{
         }catch(err: unknown){
             throw new Exception("Failed to delete group!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
+    }
+
+    static async getUnassignedGroups({flat=true} : Types.Group.Params.getUnassignedGroups): Promise<Group[] | number[] | null>{
+        const groups_id = await conn.manyOrNone('SELECT id FROM "Category".groups WHERE owner_id IS NULL AND supergroup_id=-1;')
+        
+        if(groups_id == null)
+            return null
+
+        const groups: Group[] | number[] = []
+        for(const group_id of groups_id)
+            groups.push(flat ? group_id : await Group.findById({id: group_id.id}))
+        
+            
+
+        return groups
+        
     }
 
     
@@ -286,7 +306,7 @@ export class Group{
                     await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, transaction: transaction})   
             }
             
-            await Group.setProperty({id: group.id, property_name: "group_id", new_value: id, transaction: transaction})
+            await Group.setProperty({id: group.id, property_name: "supergroup_id", new_value: id, transaction: transaction})
             await Group.setProperty({id: group.id, property_name:"pos_index", new_value:pos_index!, transaction:transaction})
         })
     }
@@ -415,6 +435,10 @@ export class Group{
 
     get name(): string{
         return this._name
+    }
+
+    get owner_id(): number{
+        return this._owner_id
     }
 
     //#region 

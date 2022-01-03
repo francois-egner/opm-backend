@@ -360,6 +360,7 @@ export namespace Types{
                 pos_index?: number,
                 icon?: string,
                 supergroup_id?: number,
+                owner_id?: number,
                 transaction?: ITask<any>
             }
 
@@ -393,24 +394,28 @@ export namespace Types{
                 transaction?: ITask<any>
             }
 
+            export interface getUnassignedGroups{
+                flat?: boolean
+            }
+
             export interface addEntry{
                 id: number,
                 entry: EntryClass,
-                pos_index: number,
+                pos_index?: number,
                 transaction?: ITask<any>
             }
 
             export interface removeEntry{
                 id: number,
                 entry_id,
-                transaction: ITask<any>
+                transaction?: ITask<any>
             }
 
             export interface repositionEntry{
                 id: number,
                 entry_id: number,
                 new_pos: number,
-                transaction: ITask<any>
+                transaction?: ITask<any>
             }
 
             export interface moveEntry{
@@ -418,27 +423,27 @@ export namespace Types{
                 entry_id: number,
                 new_group_id: number,
                 new_pos: number,
-                transaction: ITask<any>
+                transaction?: ITask<any>
             }
 
             export interface addGroup{
                 id: number,
                 group: GroupClass,
-                pos_index: number,
-                transaction: ITask<any>
+                pos_index?: number,
+                transaction?: ITask<any>
             }
 
             export interface removeGroup{
                 id: number,
                 subgroup_id: number,
-                transaction: ITask<any>
+                transaction?: ITask<any>
             }
 
             export interface repositionGroup{
                 id: number,
                 subgroup_id: number,
                 new_pos: number,
-                transaction: ITask<any>
+                transaction?: ITask<any>
             }
 
             export interface moveGroup{
