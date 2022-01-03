@@ -1,0 +1,1 @@
+SELECT * FROM "Category".groups WHERE supergroup_id=$1;

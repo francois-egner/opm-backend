@@ -1,0 +1,1 @@
+SELECT EXISTS (SELECT id FROM "Category".groups WHERE id=$1);

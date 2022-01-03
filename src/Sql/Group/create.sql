@@ -1,0 +1,1 @@
+INSERT INTO "Category".groups (name, pos_index, icon, supergroup_id) VALUES ($1, $2, $3, $4) RETURNING *;
