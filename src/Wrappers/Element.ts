@@ -1,8 +1,7 @@
-import { Types } from "../Types"
-import { elementQueries } from "../Sql/index"
+
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
-import { connection as conn } from "../Sql"
+import { connection as conn, elementQueries } from "../../Sql"
 import { Section } from "../Wrappers/Section"
 import { formatString } from "../Utils/Shared"
 

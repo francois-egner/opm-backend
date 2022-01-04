@@ -4,18 +4,33 @@ import {Section as SectionClass} from './Wrappers/Section'
 import {Entry as EntryClass} from './Wrappers/Entry'
 import {Group as GroupClass} from './Wrappers/Group'
 
+declare global {
+  interface Configuration {
+    postgresql:{
+      host: string,
+      port: number,
+      database: string,
+      username: string,
+      password: string,
+      keepAlive: boolean
+    },
+    express:{
+      interface: string,
+      port: number
+    },
+    general:{
+      sqlPath: string
+    }
+  }
 
-/**
- * Contains all interfaces for usage of named parameters across the whole project
- */
-export namespace Types{
+  namespace Types{
 
     type CustomConnection = IDatabase<any> | ITask<any>
 
      /**
      * Defined types of Exception
      */
-    export const enum ExceptionType{
+     const enum ExceptionType{
         SQLError = "SQL",
         DataError = "Data",
         NetworkError = "Network",
@@ -459,5 +474,7 @@ export namespace Types{
             }
         }
     }
+  
+      
+  } 
 }
-

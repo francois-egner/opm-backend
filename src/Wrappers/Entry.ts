@@ -1,5 +1,4 @@
-import { Types } from "../Types"
-import { connection as conn, entryQueries, sectionQueries } from "../Sql"
+import { connection as conn, entryQueries } from "../../Sql"
 import { checkForUndefined, formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
