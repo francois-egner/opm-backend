@@ -23,49 +23,49 @@ export async function disconnect(): Promise<void>{
 }
 
 export const userQueries = {
-    create: readSQL("/User/create.sql")
+    create: loadSQL("/User/create.sql")
 }
 
 export const sectionQueries = {
-    create: readSQL("/Section/create.sql"),
-    exists: readSQL("/Section/exists.sql"),
-    findById: readSQL("/Section/findById.sql"),
-    getElements: readSQL("/Section/getElements.sql"),
-    getElementsFlat: readSQL("/Section/getElementsFlat.sql"),
-    deleteById: readSQL("/Section/deleteById.sql"),
-    setProperty: readSQL("/Section/setProperty.sql", true)
+    create: loadSQL("/Section/create.sql"),
+    exists: loadSQL("/Section/exists.sql"),
+    findById: loadSQL("/Section/findById.sql"),
+    getElements: loadSQL("/Section/getElements.sql"),
+    getElementsFlat: loadSQL("/Section/getElementsFlat.sql"),
+    deleteById: loadSQL("/Section/deleteById.sql"),
+    setProperty: loadSQL("/Section/setProperty.sql", true)
 }
 
 export const elementQueries = {
-    create: readSQL("/Element/create.sql"),
-    findById: readSQL("/Element/findById.sql"),
-    exists: readSQL("/Element/exists.sql"),
-    deleteById: readSQL("/Element/deleteById.sql"),
-    setPosition: readSQL("/Element/setPosition.sql"),
-    setSection: readSQL("/Element/setSection.sql"),
-    setName: readSQL("/Element/setName.sql"),
-    setValue: readSQL("/Element/setValue.sql"),
-    setType: readSQL("/Element/setType.sql"),
-    setProperty: readSQL("/Element/setProperty.sql", true)
+    create: loadSQL("/Element/create.sql"),
+    findById: loadSQL("/Element/findById.sql"),
+    exists: loadSQL("/Element/exists.sql"),
+    deleteById: loadSQL("/Element/deleteById.sql"),
+    setPosition: loadSQL("/Element/setPosition.sql"),
+    setSection: loadSQL("/Element/setSection.sql"),
+    setName: loadSQL("/Element/setName.sql"),
+    setValue: loadSQL("/Element/setValue.sql"),
+    setType: loadSQL("/Element/setType.sql"),
+    setProperty: loadSQL("/Element/setProperty.sql", true)
 }
 
 export const entryQueries = {
-    create: readSQL("/Entry/create.sql"),
-    exists: readSQL("/Entry/exists.sql"),
-    deleteById: readSQL("/Entry/deleteById.sql"),
-    findById: readSQL("/Entry/findById.sql"),
-    getSections: readSQL("/Entry/getSections.sql"),
-    setProperty: readSQL("/Entry/setProperty.sql", true)
+    create: loadSQL("/Entry/create.sql"),
+    exists: loadSQL("/Entry/exists.sql"),
+    deleteById: loadSQL("/Entry/deleteById.sql"),
+    findById: loadSQL("/Entry/findById.sql"),
+    getSections: loadSQL("/Entry/getSections.sql"),
+    setProperty: loadSQL("/Entry/setProperty.sql", true)
 }
 
 export const groupQueries = {
-    create: readSQL("/Group/create.sql"),
-    exists: readSQL("/Group/exists.sql"),
-    getSubGroups: readSQL("/Group/getSubGroups.sql"),
-    getEntries: readSQL("/Group/getEntries.sql"),
-    findById: readSQL("/Group/findById.sql"),
-    deleteById: readSQL("/Group/deleteById.sql"),
-    setProperty: readSQL("/Group/setProperty.sql", true)
+    create: loadSQL("/Group/create.sql"),
+    exists: loadSQL("/Group/exists.sql"),
+    getSubGroups: loadSQL("/Group/getSubGroups.sql"),
+    getEntries: loadSQL("/Group/getEntries.sql"),
+    findById: loadSQL("/Group/findById.sql"),
+    deleteById: loadSQL("/Group/deleteById.sql"),
+    setProperty: loadSQL("/Group/setProperty.sql", true)
 }
 
 /**
@@ -73,7 +73,7 @@ export const groupQueries = {
  * @param file Relative path to SQL file
  * @returns 
  */
-function readSQL(file: string, plain?: boolean): QueryFile | string {
+function loadSQL(file: string, plain?: boolean): QueryFile | string {
     const fullPath: string = joinPath(__dirname, file);
     console.log(fullPath)
     if(plain){

@@ -39,14 +39,16 @@ export class Group{
         this._owner_id = owner_id
     }
 
-    static async create({name, pos_index=-1, supergroup_id=-1, icon="default", owner_id, transaction}:Types.Group.Params.create): Promise<Group>{
+
+
+    static async create({name, supergroup_id, icon,owner_id, transaction}:Types.Group.Params.create): Promise<Group>{
         //TODO: Parameter validation (owner_id)
-        if(supergroup_id !== -1 && !(await Group.exists({id: supergroup_id})))
+        if(supergroup_id !== undefined && !(await Group.exists({id: supergroup_id})))
             throw new Exception("Provided supergroup not valid!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
         try{
             const queryObject = transaction ? transaction : conn
-            const queryData = [name, pos_index, icon, supergroup_id, owner_id]
+            const queryData = [name, icon, supergroup_id, owner_id]
 
             const groupData = await queryObject.one(groupQueries.create, queryData)
 
@@ -129,8 +131,8 @@ export class Group{
     }
 
     static async deleteById({id, transaction}:Types.Group.Params.deleteById): Promise<void>{
-        const exists = await Group.exists({id: id})
-        if(!exists)
+        const group = await Group.findById({id: id})
+        if(group == null)
             throw new Exception("Group to be deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
@@ -138,6 +140,9 @@ export class Group{
             await conn.tx(async (tx)=>{
                 transaction = transaction ? transaction : tx
 
+                if(group.supergroup_id !== undefined)
+                    await Group.removeGroup({id: group.supergroup_id, subgroup_id: id, transaction: transaction})
+                
                 const entries_id = await Group.getEntries({id: id, flat: true})
 
                 for(const entry_id of entries_id as number[])
@@ -155,23 +160,6 @@ export class Group{
             throw new Exception("Failed to delete group!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
-
-    static async getUnassignedGroups({flat=true} : Types.Group.Params.getUnassignedGroups): Promise<Group[] | number[] | null>{
-        const groups_id = await conn.manyOrNone('SELECT id FROM "Category".groups WHERE owner_id IS NULL AND supergroup_id=-1;')
-        
-        if(groups_id == null)
-            return null
-
-        const groups: Group[] | number[] = []
-        for(const group_id of groups_id)
-            groups.push(flat ? group_id : await Group.findById({id: group_id.id}))
-        
-            
-
-        return groups
-        
-    }
-
     
 
     //#region Entry management
@@ -203,7 +191,7 @@ export class Group{
         })
     }
 
-    static async removeEntry({id, entry_id, transaction}: Types.Group.Params.removeEntry): Promise<void>{
+    static async removeEntry({id, entry_id, del=false, transaction}: Types.Group.Params.removeEntry): Promise<void>{
         const entries = await Group.getEntries({id: id, flat: false}) as Entry[]
         const entry_to_remove = await Entry.findById({id: entry_id})
 
@@ -222,7 +210,9 @@ export class Group{
                 if(entry.pos_index > entry_to_remove.pos_index)
                     await Entry.setProperty({id: entry.id, property_name: "pos_index", new_value: entry.pos_index-1, transaction: transaction})   
             }
-            await Entry.setProperty({id: entry_id, property_name:"group_id", new_value:-1, transaction: transaction})
+
+            if(del)
+                await Entry.deleteById({id: entry_id, transaction: transaction})
         }) 
     }
 
@@ -311,7 +301,7 @@ export class Group{
         })
     }
     
-    static async removeGroup({id, subgroup_id, transaction}: Types.Group.Params.removeGroup): Promise<void>{
+    static async removeGroup({id, subgroup_id, del=false, transaction}: Types.Group.Params.removeGroup): Promise<void>{
         const subgroups = await Group.getSubGroups({id: id, flat: false}) as Group[]
         const group_to_remove = await Group.findById({id: subgroup_id})
 
@@ -330,8 +320,10 @@ export class Group{
                 if(subgroup.pos_index > group_to_remove.pos_index)
                     await Group.setProperty({id: subgroup.id, property_name: "pos_index", new_value: subgroup.pos_index-1, transaction: transaction})   
             }
-            await Group.setProperty({id: subgroup_id, property_name:"group_id", new_value:-1, transaction: transaction})
-        }) 
+
+            if(del)
+                await Group.deleteById({id: subgroup_id, transaction: transaction})
+            }) 
     }
     
     static async repositionGroup({id, subgroup_id, new_pos, transaction}: Types.Group.Params.repositionGroup): Promise<void>{
@@ -440,6 +432,5 @@ export class Group{
     get owner_id(): number{
         return this._owner_id
     }
-
     //#region 
 }

@@ -4,6 +4,7 @@ import { checkForUndefined, formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { Section } from '../Wrappers/Section'
+import { Group } from "./Group"
 
 const propertyNames = ["name", "tags", "pos_index", "icon", "group_id"]
      
@@ -102,13 +103,17 @@ export class Entry{
     }
 
     static async deleteById({id, transaction} : Types.Entry.Params.deleteById) : Promise<void>{
-        const exists = await Entry.exists({id: id})
-        if(!exists) 
+        // const exists = await Entry.exists({id: id})
+        const entry = await Entry.findById({id: id})
+        if(entry == null) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
         //Atomicity needed here
         await conn.tx(async (tx)=>{
             transaction = transaction ? transaction : tx
+
+            await Group.removeEntry({id: entry.group_id, entry_id: id, transaction: transaction})
+
             const sections_id = await Entry.getSections({id: id}) as number[]
 
             for(const section_id of sections_id)
@@ -150,7 +155,7 @@ export class Entry{
         })
     }
 
-    static async removeSection({id, section_id, transaction} : Types.Entry.Params.removeSection) : Promise<void>{
+    static async removeSection({id, section_id, del=false, transaction} : Types.Entry.Params.removeSection) : Promise<void>{
         const sections = await Entry.getSections({id: id, flat: false}) as Section[]
         const section_to_remove = await Section.findById({id: section_id})
 
@@ -168,12 +173,11 @@ export class Entry{
             for(const section of sections){
                 if(section.pos_index > section_to_remove.pos_index)
                     await Section.setProperty({id: section.id, property_name: "pos_index", new_value: section.pos_index-1, transaction: transaction})   
-                //await Section.setPosition({id: section.id, new_pos: section.pos_index-1, transaction: transaction})
-
+                
             }
-            await Section.setProperty({id: section_id, property_name:"entry_id", new_value:-1, transaction: transaction})
-            
-            //await Section.setEntry({id: section_id, new_entry_id: -1, transaction: transaction})
+
+            if(del)
+                await Section.deleteById({id: section_id, transaction: transaction})
         })
     }
 
@@ -284,9 +288,10 @@ export class Entry{
         return this._icon
     }
 
-    get category_id(): number{
+    get group_id(): number{
         return this._group_id
     }
+
     //#endregion
 
 

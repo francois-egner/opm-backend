@@ -134,6 +134,7 @@ export namespace Types{
             export interface removeElement{
                 id: number,
                 element_id: number,
+                del?:boolean,
                 transaction? : ITask<any>
             }
 
@@ -315,6 +316,7 @@ export namespace Types{
             export interface removeSection{
                 id: number,
                 section_id: number,
+                del?: boolean,
                 transaction?: ITask<any>
             }
 
@@ -408,6 +410,7 @@ export namespace Types{
             export interface removeEntry{
                 id: number,
                 entry_id,
+                del?: boolean,
                 transaction?: ITask<any>
             }
 
@@ -436,6 +439,7 @@ export namespace Types{
             export interface removeGroup{
                 id: number,
                 subgroup_id: number,
+                del?: boolean,
                 transaction?: ITask<any>
             }
 
