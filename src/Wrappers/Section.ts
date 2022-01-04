@@ -138,8 +138,9 @@ export class Section{
      * @param transaction Transaction for querying
      */
     static async deleteById({id, transaction}: Types.Section.Params.deleteById) : Promise<void>{
-        const exists = await this.exists({id: id})
-        if (!exists) throw new Exception("Failed to delete section. No section with provided id exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        const section = await Section.findById({id: id})
+        if (section == null)
+            throw new Exception("Failed to delete section. No section with provided id exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         
         try{
@@ -147,6 +148,8 @@ export class Section{
             //Start a new transaction if no transaction was provided
             await conn.tx(async (tx)=>{
                 transaction = transaction ? transaction : tx
+
+                await Entry.removeSection({id: section.entry_id, section_id: id, transaction: transaction})
                 
                 const elements_id = await this.getElements({id: id}) as number[]
                 for(const element_id of elements_id) 
@@ -209,7 +212,7 @@ export class Section{
     * element_id Unique identifier of element to be removed from section
     * transaction Transaction for querying
     */
-    static async removeElement({id, element_id, transaction}: Types.Section.Params.removeElement) : Promise<void>{
+    static async removeElement({id, element_id, del=false, transaction}: Types.Section.Params.removeElement) : Promise<void>{
         const elements = await Section.getElements({id: id, flat: false}) as Element[]
         const element_to_remove = await Element.findById({id: element_id})
 
@@ -228,6 +231,9 @@ export class Section{
                 if(element.pos_index > element_to_remove.pos_index)
                     await Element.setProperty({id: element.id, property_name: "pos_index", new_value: element.pos_index-1, transaction: transaction})
             }
+
+            if(del)
+                await Element.deleteById({id: element_id, transaction: transaction})
 
         })
         

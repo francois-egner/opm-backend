@@ -122,13 +122,20 @@ export class Element{
     * @param connection Connection/Transaction for queyring
     */
     static async deleteById({id, transaction} : Types.Element.Params.deleteById): Promise <void>{
-        const exists = await this.exists({id: id})
-        if(!exists) throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        const element = await Element.findById({id: id})
+        if(element == null)
+            throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
-            const queryObject = transaction ? transaction : conn
-            const queryData = [id]
-            await queryObject.none(elementQueries.deleteById, queryData)
+            await conn.tx(async (tx)=>{
+                transaction = transaction ? transaction : tx
+
+                await Section.removeElement({id: element.section_id, element_id: id, transaction: transaction})
+                
+                const queryData = [id]
+                await transaction!.none(elementQueries.deleteById, queryData)
+            })
+            
         }catch(err: unknown){
             throw new Exception("Failed to delete element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
