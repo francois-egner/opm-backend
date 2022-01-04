@@ -1,7 +1,6 @@
 
-import { Types } from "../Types"
-import { connection as conn, entryQueries, groupQueries, sectionQueries } from "../Sql"
-import { checkForUndefined, formatString } from "../Utils/Shared"
+import { connection as conn, groupQueries, } from "../../Sql"
+import {  formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { Entry } from "./Entry"

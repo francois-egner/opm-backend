@@ -1,8 +1,6 @@
-import { Types } from "../Types"
-import { userQueries } from "../Sql/index"
 import { Exception } from "../Utils/Exception"
 import {  checkForUndefined, isValidEmail } from "../Utils/Shared"
-import { connection as conn} from "../Sql"
+import { connection as conn, userQueries} from "../../Sql"
 import HttpStatus from 'http-status-codes'
 
 

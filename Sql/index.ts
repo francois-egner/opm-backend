@@ -2,17 +2,20 @@ import pgPromise, { IDatabase, QueryFile } from "pg-promise"
 import { join as joinPath} from 'path'
 import {readFileSync} from "fs"
 import pgMinify from "pg-minify"
+import { configuration, loaded } from "../src/Utils/Configurator"
+import { Exception } from "../src/Utils/Exception"
 
 export let connection: IDatabase<any>
 
 export async function connect(): Promise<void>{
+
     const pg = pgPromise();
     const db = await pg({
-        user: "crypt0n",
-        host: "localhost",
-        database:"postgres",
-        password:"",
-        keepAlive:true
+        user: configuration.postgresql.username,
+        host: configuration.postgresql.host,
+        database: configuration.postgresql.database,
+        password: configuration.postgresql.password,
+        keepAlive: configuration.postgresql.keepAlive
     });
 
     connection = db
@@ -33,7 +36,7 @@ export const sectionQueries = {
     getElements: loadSQL("/Section/getElements.sql"),
     getElementsFlat: loadSQL("/Section/getElementsFlat.sql"),
     deleteById: loadSQL("/Section/deleteById.sql"),
-    setProperty: loadSQL("/Section/setProperty.sql", true)
+    setProperty: loadSQL("/Section/setProperty.sql")
 }
 
 export const elementQueries = {
@@ -46,7 +49,7 @@ export const elementQueries = {
     setName: loadSQL("/Element/setName.sql"),
     setValue: loadSQL("/Element/setValue.sql"),
     setType: loadSQL("/Element/setType.sql"),
-    setProperty: loadSQL("/Element/setProperty.sql", true)
+    setProperty: loadSQL("/Element/setProperty.sql")
 }
 
 export const entryQueries = {
@@ -55,7 +58,7 @@ export const entryQueries = {
     deleteById: loadSQL("/Entry/deleteById.sql"),
     findById: loadSQL("/Entry/findById.sql"),
     getSections: loadSQL("/Entry/getSections.sql"),
-    setProperty: loadSQL("/Entry/setProperty.sql", true)
+    setProperty: loadSQL("/Entry/setProperty.sql")
 }
 
 export const groupQueries = {
@@ -65,7 +68,7 @@ export const groupQueries = {
     getEntries: loadSQL("/Group/getEntries.sql"),
     findById: loadSQL("/Group/findById.sql"),
     deleteById: loadSQL("/Group/deleteById.sql"),
-    setProperty: loadSQL("/Group/setProperty.sql", true)
+    setProperty: loadSQL("/Group/setProperty.sql")
 }
 
 /**
@@ -73,14 +76,15 @@ export const groupQueries = {
  * @param file Relative path to SQL file
  * @returns 
  */
-function loadSQL(file: string, plain?: boolean): QueryFile | string {
-    const fullPath: string = joinPath(__dirname, file);
-    console.log(fullPath)
-    if(plain){
+function loadSQL(file: string): string {
+    try{
+        const fullPath: string = joinPath(configuration.general.sqlPath, file)//joinPath(__dirname, file);
+    
         return pgMinify(readFileSync(fullPath,`utf8`),{compress: true, removeAll:true})
+    }catch(err: unknown){
+        throw new Exception("Failed to load sql file!", Types.ExceptionType.RuntimeError, undefined, err as Error)
     }
-    const queryFile: QueryFile = new QueryFile(fullPath, {minify: true, debug: true});
-
-    return queryFile;
+    
+    
 }
 
