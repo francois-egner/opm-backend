@@ -73,17 +73,41 @@ export class Element{
     * @param type Type of element (e.g. password, cleartext, binary file etc.)
     * @param [transaction] Transaction object for querying
     */
-    static async create({name, value, type, transaction} : Params.Element.create): Promise<Element>{
+    static async create({name, value, type, section_id, pos_index, transaction} : Params.Element.create): Promise<Element>{
         
-        try{
-            const queryObject = transaction ? transaction : conn
+        const section = await Section.findById({id: section_id})
 
-            const queryData = [name,value, type]
-            const elementData = await queryObject.one(elementQueries.create, queryData)
+        if(section == null) 
+            throw new Exception("Section to add element to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
+        const elements_count = section!.elements.length
+
+        if(!pos_index)
+            pos_index = elements_count
+
+        if(pos_index < 0 || pos_index > elements_count)
+            throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+
+             
+        
+        return await conn.tx(async (tx)=>{
+            transaction = transaction ? transaction : tx
+            
+            //Prepare section for insertion of new element
+            for (const el of section!.elements){
+                if(el.pos_index >= pos_index!)
+                    await Element.setProperty({id: el.id, property_name:"pos_index", new_value: el.pos_index+1, transaction: transaction})    
+            }
+            
+            //Create new element
+            const queryData = [name, value, type, section_id, pos_index]
+            const elementData = await transaction.one(elementQueries.create, queryData)
+
             return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
-        }catch(err: unknown){
-            throw new Exception("Failed to create new element", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        } 
+
+            // await  Element.setProperty({id: element.id, property_name: "section_id", new_value: id, transaction: transaction})
+            // await Element.setProperty({id: element.id, property_name: "pos_index", new_value: pos_index!, transaction: transaction})
+        })
     }
 
     /**
@@ -160,7 +184,7 @@ export class Element{
             throw new Exception("Unable to find element to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-
+            
             const queryObject = transaction ? transaction : conn
 
             const queryString = formatString(elementQueries.setProperty as string, property_name)

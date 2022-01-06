@@ -26,9 +26,14 @@ declare global {
 
             /**
             * @param name Name of new sections
+            * @param entry_id Unique identifier of entry the section should be part of
+            * @param [pos_index] Position (index) of section in entry
+            * @param [transaction] Transation object for querying
             */
             export interface create{
                 name: string,
+                entry_id: number,
+                pos_index?: number,
                 transaction?: ITask<any>
             }
             
@@ -127,12 +132,16 @@ declare global {
             * @param name Name of new element
             * @param value Value/data of the element (e.g. actual password, binary data etc.)
             * @param type Type of element (e.g. password, cleartext, binary file etc.)
+            * @param section_id Unique identifier of section the element should be added to
+            * @param [pos_index] Position (index) for new element in section
             * @param [transaction] Transaction object for querying
             */
             export interface create{
                 name: string,
                 value: string,
                 type: Types.Element.ElementType,
+                section_id: number,
+                pos_index?: number,
                 transaction?: ITask<any>
             }
 
@@ -167,12 +176,16 @@ declare global {
             * @param name Name of the new entry
             * @param tags Array of tags of the new entry
             * @param icon Base64 encoded icon of the new entry. Defaults to a predefined default icon
+            * @param group_id Unique identifier of group to add entry to
+            * @param [pos_index] Position (index) of entry in group
             * @param [transaction] Transaction object for querying
             */
             export interface create{
-                title: string,
+                name: string,
                 tags: string[],
                 icon?: string,
+                group_id: number,
+                pos_index?: number,
                 transaction?: ITask<any>
             }
 
@@ -269,14 +282,16 @@ declare global {
              * @param name Name of new group
              * @param [icon] Base64 encoded icon
              * @param supergroup_id Unique identifier of group that will be the supergroup of this group
-             * @param owner_id Unique identifier of user that owns this group. Only set if the new group is a root group
+             * @param [pos_index] Position (index) of group in supergroup or root
+             * @param [root] If true, group will be a root group
              * @param [transaction] Transaction object for querying
              */
             export interface create{
                 name: string,
                 icon?: string,
                 supergroup_id?: number,
-                owner_id?: number,
+                pos_index?: number,
+                root?: boolean,
                 transaction?: ITask<any>
             }
 

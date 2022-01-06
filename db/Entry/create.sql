@@ -1,1 +1,1 @@
-INSERT INTO "Category".entries (name, tags,  icon) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO "Category".entries (name, tags, icon, group_id, pos_index) VALUES ($1, $2, $3, $4, $5) RETURNING *;

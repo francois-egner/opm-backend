@@ -1,1 +1,1 @@
-INSERT INTO "Category".elements (name, value, type) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO "Category".elements (name, value, type, section_id, pos_index) VALUES ($1, $2, $3, $4, $5) RETURNING *;

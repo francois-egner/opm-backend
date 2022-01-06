@@ -50,7 +50,7 @@ export class Entry{
      */
     private _group_id: number
 
-    
+
     constructor(id: number, title: string, tags: string[], pos_index: number, icon: string,  group_id: number, sections?: Section[] | number[]){
         this._id = id
         this._name = title
@@ -71,20 +71,36 @@ export class Entry{
       * @param [transaction] Transaction object for querying
       * @returns Instance of the newly created entry
      */
-    static async create({title: name, tags, icon, transaction} : Params.Entry.create) : Promise<Entry>{
-        if (!checkForUndefined({title: name, tags})) throw new Exception("Failed to create new entry. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+    static async create({name, tags, icon, group_id, pos_index, transaction} : Params.Entry.create) : Promise<Entry>{
+        
+        const group = await Group.findById({id: group_id})
 
-        const queryObject = transaction ? transaction : conn
+        if(group == null)
+            throw new Exception("Group to add entry to not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-        try{
-            const queryData = [name, tags, icon]
-            const entryData = await queryObject.one(entryQueries.create, queryData)
+        const entries_count = group!.entries.length
+
+        if(!pos_index)
+            pos_index = entries_count
+
+        if(pos_index < 0 || pos_index > entries_count) 
+            throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+
+        return await conn.tx(async (tx)=>{
+            transaction = transaction ? transaction : tx
+                
+            for (const entry of group!.entries as Entry[]){
+                if(entry.pos_index >= pos_index!)
+                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index+1, transaction: transaction})   
+            }
+
+            const queryData = [name, tags, icon, group_id, pos_index]
+            const entryData = await transaction.one(entryQueries.create, queryData)
 
             return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
-        }
-        catch(err: unknown){
-            throw new Exception("Failed to create new Entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
+        })
+
+        
     }
 
     /**
@@ -247,7 +263,13 @@ export class Entry{
         })
     }
 
-
+    /**
+     * Repositions a section inside an entry
+     * @param id Unique identifier of entry to reposition section of
+     * @param section_id Unique identifier of section to reposition
+     * @param new_pos_index Position (index) the section should be placed to
+     * @param [transaction] Transaction object for querying
+    */
     static async repositionSection({id, section_id, new_pos_index, transaction} : Params.Entry.repositionSection) : Promise<void>{
         const sections = await Entry.getSections({id: id, flat: false}) as Section[]
         const section_to_reposition = await Section.findById({id: section_id})

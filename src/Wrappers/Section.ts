@@ -55,23 +55,39 @@ export class Section{
     * Creates a new section
     * @param name Name of new sections
     */
-    static async create({name, transaction} : Params.Section.create) : Promise<Section>{
+    static async create({name, entry_id, pos_index, transaction} : Params.Section.create) : Promise<Section>{
         //TODO: Check entry_id for validation? Not necessary if section is added by a member function of Entry?
         //TODO: Proper param validation
         if (!checkForUndefined({name})) 
             throw new Exception("Failed to create new section. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-        try{
-            const queryObject = transaction ? transaction : conn
-            const queryData = [name]
+        const entry = await Entry.findById({id: entry_id})
 
-            const sectionData = await queryObject.one(sectionQueries.create, queryData)
+        if(entry == null)
+            throw new Exception("Entry to add section to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+    
+        const sections_count = entry!.sections.length
+    
+        if(!pos_index)
+            pos_index = sections_count
+    
+        if(pos_index < 0 || pos_index > sections_count) 
+            throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+    
+        return await conn.tx(async (tx)=>{
+            transaction = transaction ? transaction : tx
+                   
+            for (const section of entry!.sections as Section[]){
+                if(section.pos_index >= pos_index!)
+                    await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index+1, transaction: transaction})
+            }
+            
+            const queryData = [name, entry_id, pos_index]
+            const sectionData = await transaction.one(sectionQueries.create, queryData)
 
             return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
-        }
-        catch(err: unknown){
-            throw new Exception("Failed to create new Section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
+        
+        })
 
     }
 
@@ -198,9 +214,9 @@ export class Section{
         await conn.tx(async (tx)=>{
             transaction = transaction ? transaction : tx
             
-            for (const element of section!.elements){
-                if(element.pos_index >= pos_index!)
-                    await Element.setProperty({id: element.id, property_name:"pos_index", new_value: element.pos_index+1, transaction: transaction})    
+            for (const el of section!.elements){
+                if(el.pos_index >= pos_index!)
+                    await Element.setProperty({id: el.id, property_name:"pos_index", new_value: el.pos_index+1, transaction: transaction})    
                     
             }
             

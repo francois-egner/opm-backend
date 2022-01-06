@@ -1,1 +1,1 @@
-INSERT INTO "Category".groups (name, icon, supergroup_id, owner_id) VALUES ($1, $2, $3, $4) RETURNING *;
+INSERT INTO "Category".groups (name, icon, supergroup_id, pos_index) VALUES ($1, $2, $3, $4) RETURNING *;

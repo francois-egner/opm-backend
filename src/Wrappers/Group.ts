@@ -36,11 +36,6 @@ export class Group{
     private _supergroup_id: number
 
     /**
-     * Unique identifier of the user/owner that owns the group. This id is only set if the group is a root group
-     */
-    private _owner_id: number
-
-    /**
      * Entries that are associated to the group
      */
     private _entries: Entry[] | number[] | null = []
@@ -51,7 +46,7 @@ export class Group{
     private _subGroups: Group[] | number[] | null = []
 
 
-    constructor(id: number, name: string, pos_index: number, icon: string, supergroup_id: number, owner_id: number, subGroups?: Group[] | number[] | null, entries?: Entry[] | number[] | null){
+    constructor(id: number, name: string, pos_index: number, icon: string, supergroup_id: number, subGroups?: Group[] | number[] | null, entries?: Entry[] | number[] | null){
         this._id = id
         this._name = name
         this._pos_index = pos_index
@@ -62,8 +57,6 @@ export class Group{
         
         if(entries)
             this._entries = entries
-        
-        this._owner_id = owner_id
     }
 
 
@@ -76,21 +69,40 @@ export class Group{
      * @param [transaction] Transaction object for querying
      * @returns Newly created group
     */
-    static async create({name, supergroup_id, icon,owner_id, transaction} : Params.Group.create) : Promise<Group>{
-        //TODO: Parameter validation (owner_id)
-        if(supergroup_id !== undefined && !(await Group.exists({id: supergroup_id})))
-            throw new Exception("Provided supergroup not valid!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+    static async create({name, icon, supergroup_id, pos_index, root=false, transaction} : Params.Group.create) : Promise<Group>{
+        
+        return await conn.tx(async (tx)=>{
 
-        try{
-            const queryObject = transaction ? transaction : conn
-            const queryData = [name, icon, supergroup_id, owner_id]
+            transaction = transaction ? transaction : tx
 
-            const groupData = await queryObject.one(groupQueries.create, queryData)
+            if(!root){
+                //TODO: Parameter validation (owner_id)
+                const supergroup = await Group.findById({id: supergroup_id})
 
-            return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, groupData.owner_id)
-        }catch(err: unknown){
-            throw new Exception("Failed to create new Group!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
+                if(supergroup == null)
+                    throw new Exception("Group to add subgroup to not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+
+                const subgroups_count = supergroup!.subgroups.length
+
+                if(!pos_index)
+                    pos_index = subgroups_count
+
+                if(pos_index < 0 || pos_index > subgroups_count) 
+                    throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+
+                
+                for (const subgroup of supergroup!.subgroups as Group[]){
+                    if(subgroup.pos_index >= pos_index!)
+                    await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, transaction: transaction})   
+                }
+            }
+            
+
+            const queryData = [name, icon, root ? -1 : supergroup_id, root ? -1 : pos_index]
+            const groupData = await transaction.one(groupQueries.create, queryData)
+
+            return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
+        })
     }
 
     /**
@@ -181,7 +193,7 @@ export class Group{
             const subGroups = await Group.getSubGroups({id: id, flat: false})
             const entries = await Group.getEntries({id: id, flat: false})
 
-            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, groupData.owner_id, subGroups, entries)
+            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, subGroups, entries)
         }catch(err: unknown){
             throw new Exception("Failed to fetch group data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -558,10 +570,6 @@ export class Group{
 
     get name(): string{
         return this._name
-    }
-
-    get owner_id(): number{
-        return this._owner_id
     }
 
     //#endregion 
