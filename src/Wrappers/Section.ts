@@ -1,12 +1,19 @@
-import { connection as conn, sectionQueries } from "../../Sql"
+import { connection as conn, sectionQueries } from "../../db"
 import { checkForUndefined, formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import {Element} from "./Element"
 import { Entry } from "./Entry"
 
+/**
+ * Property names that may be changed by calling setProperty()
+ */
 const propertyNames = ["name", "pos_index", "entry_id"]
 
+/**
+ * A section is part of an entry. It is used to divide an entry into different regions/sections. A section contains
+ * elements that are associated to each other, for example username and a password element
+ */
 export class Section{
 
     /**
@@ -15,7 +22,7 @@ export class Section{
     private _id: number
 
     /**
-    * Name of section. Its like a title
+    * Name of section
     */
     private _name: string
 
@@ -45,12 +52,10 @@ export class Section{
     }
 
     /**
-    * Creates a new section and assigns it to the entry identified by provided unique identifier 
-    * @param name Name of new section
-    * @param pos_index Position (index) of section inside an entry
-    * @param entry_id Unique identifier of entry the section is assigned to
+    * Creates a new section
+    * @param name Name of new sections
     */
-    static async create({name, transaction} : Types.Section.Params.create): Promise<Section>{
+    static async create({name, transaction} : Params.Section.create) : Promise<Section>{
         //TODO: Check entry_id for validation? Not necessary if section is added by a member function of Entry?
         //TODO: Proper param validation
         if (!checkForUndefined({name})) 
@@ -71,10 +76,10 @@ export class Section{
     }
 
     /**
-    * Checks if a section with provided unique identifier does exist 
-    * id Unique identifier of section to check existence for
+    * Checks if a section with provided id does exist 
+    * @param id Unique identifier of section to check existence for
     */
-    static async exists({id} : Types.Section.Params.exists): Promise<boolean>{
+    static async exists({id} : Params.Section.exists) : Promise<boolean>{
         
         try{
             const existsData = await conn.one(sectionQueries.exists, [id]);
@@ -85,11 +90,11 @@ export class Section{
     }
 
     /**
-    * Finds/Returns an instance of the section with provided unique identifier
-    * @param id Unique identifier of section to be returned/found
-    * @returns Section instance or null if no section was found
+    * Tries to fetch section data of the section with the provided id
+    * @param id Unique identifier of section to be returned
+    * @returns Section instance or null if no section with provided id was found
     */
-    static async findById({id}: Types.Section.Params.findById): Promise<Section | null>{
+    static async findById({id} : Params.Section.findById) : Promise<Section | null>{
         const exists = await this.exists({id: id})
         if(!exists) return null
 
@@ -104,20 +109,22 @@ export class Section{
     }
 
     /**
-     * Fetches all elements associated to section identified by provided unique identifier
-     * @param id Unique identifier of section elements should be returned from
-     * @param flat If true, only unique identifiers of elements will be returned 
-     * @returns Array of Element instances, unique identifiers or null if no element was found
+     * Fetches all elements associated to section identified by provided id
+     * @param id Unique identifier of section all associated elements should be returned from
+     * @param flat If true, only ids of associated elements will be returned 
+     * @returns Array of Element instances, ids of associated elements or null if no element was found
      */
-    static async getElements({id, flat=true} : Types.Section.Params.getElements): Promise<Element[] | number[] | null>{
+    static async getElements({id, flat=true} : Params.Section.getElements) : Promise<Element[] | number[] | null>{
         const exists = await this.exists({id: id})
-        if(!exists) throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        if(!exists)
+            throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
         try{
             const elements: Element[] | number[] = []
             const elementsData = await conn.manyOrNone(flat ? sectionQueries.getElementsFlat: sectionQueries.getElements, [id])
             
-            if(elementsData == null) return null
+            if(elementsData == null)
+                return null
 
             for(const elementData of elementsData){
                 const newElement = flat ? elementData.id : new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
@@ -134,9 +141,9 @@ export class Section{
     /**
      * Deletes section and all of its elements
      * @param id Unique identifier of section to be deleted
-     * @param transaction Transaction for querying
+     * @param [transaction] Transaction object for querying
      */
-    static async deleteById({id, transaction}: Types.Section.Params.deleteById) : Promise<void>{
+    static async deleteById({id, transaction} : Params.Section.deleteById) : Promise<void>{
         const section = await Section.findById({id: id})
         if (section == null)
             throw new Exception("Failed to delete section. No section with provided id exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -161,16 +168,18 @@ export class Section{
             throw new Exception("Failed to delete section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+    
 
+    //#region Element management
 
     /**
     * Add an element to a section
     * @param id Unique identifier of section the element should be added to
-    * @param element Instance of element to be added to section
-    * @param pos_index Position (index) where the element should be place to
-    * @param transaction Transaction for querying
+    * @param element Instance of element to be added to section with provided id
+    * @param [pos_index] Position (index) where the element should be place into. If not provided, it will be placed last
+    * @param [transaction] Transaction object for querying
     */
-    static async addElement({id, element, pos_index, transaction}: Types.Section.Params.addElement):Promise<void>{
+    static async addElement({id, element, pos_index, transaction} : Params.Section.addElement) : Promise<void>{
         //TODO: More parameter validation
         const section = await Section.findById({id: id})
 
@@ -193,13 +202,10 @@ export class Section{
                 if(element.pos_index >= pos_index!)
                     await Element.setProperty({id: element.id, property_name:"pos_index", new_value: element.pos_index+1, transaction: transaction})    
                     
-                //await Element.setPosition({id: element.id, new_pos_index: element.pos_index+1, transaction: transaction})
             }
             
             await  Element.setProperty({id: element.id, property_name: "section_id", new_value: id, transaction: transaction})
             await Element.setProperty({id: element.id, property_name: "pos_index", new_value: pos_index!, transaction: transaction})
-            // await Element.setSection({id: element.id, new_section_id: id, transaction: transaction})
-            // await Element.setPosition({id: element.id, new_pos_index: pos_index!, transaction: transaction})
         })
         
 
@@ -207,11 +213,12 @@ export class Section{
 
     /**
     * Removes an element from a section
-    * id Unique identifier of section
-    * element_id Unique identifier of element to be removed from section
-    * transaction Transaction for querying
+    * @param id Unique identifier of section an element should be removed from
+    * @param element_id Unique identifier of element to be removed from section
+    * @param del if true, the element will be deleted
+    * @param [transaction] Transaction object for querying
     */
-    static async removeElement({id, element_id, del=false, transaction}: Types.Section.Params.removeElement) : Promise<void>{
+    static async removeElement({id, element_id, del=false, transaction} : Params.Section.removeElement) : Promise<void>{
         const elements = await Section.getElements({id: id, flat: false}) as Element[]
         const element_to_remove = await Element.findById({id: element_id})
 
@@ -242,11 +249,11 @@ export class Section{
     /**
     * Repositions an element inside a section
     * @param id Unique identifier of section
-    * @param element_id Unique identifier of element to be repositioned
+    * @param element_id Unique identifier of associated element to be repositioned
     * @param new_pos_index Position (index) the element should be moved to
-    * @param transaction Transaction for querying
+    * @param [transaction] Transaction object for querying
     */
-    private static async repositionElement({id, element_id, new_pos, transaction} : Types.Section.Params.repositionElement){
+    private static async repositionElement({id, element_id, new_pos, transaction} : Params.Section.repositionElement) : Promise<void>{
         const elements = await Section.getElements({id: id, flat: false}) as Element[]
         const element_to_reposition = await Element.findById({id: element_id})
 
@@ -276,10 +283,10 @@ export class Section{
     * @param id Unique identifier of section the element should be moved from
     * @param element_id Unique identifier of the element to be moved
     * @param new_section_id Unique identifier of section the element should be moved to
-    * @param new_pos_index Position (index) of element in section the element will be moved to
-    * @param transaction Transaction for querying
+    * @param [new_pos_index] Position (index) of element in section the element will be moved to
+    * @param [transaction] Transaction object for querying
     */
-    static async moveElement({id, element_id, new_section_id, new_pos, transaction} : Types.Section.Params.moveElement) : Promise<void>{
+    static async moveElement({id, element_id, new_section_id, new_pos_index, transaction} : Params.Section.moveElement) : Promise<void>{
         const elements = await Section.getElements({id: id, flat: false}) as Element[]
         const element_to_move = await Element.findById({id: element_id})
 
@@ -299,24 +306,32 @@ export class Section{
 
             transaction = transaction ? transaction : tx
             if(id === new_section_id){
-                if(!new_pos)
+                if(!new_pos_index)
                     throw new Exception("New position must be defined when moving inside a section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
                 
-                await Section.repositionElement({id: id, element_id: element_id, new_pos: new_pos, transaction: transaction})
+                await Section.repositionElement({id: id, element_id: element_id, new_pos: new_pos_index, transaction: transaction})
                 return
             }
                 
             await Section.removeElement({id: id, element_id: element_id, transaction: transaction})
-            await Section.addElement({id: new_section_id, element: element_to_move, pos_index: new_pos, transaction: transaction})
+            await Section.addElement({id: new_section_id, element: element_to_move, pos_index: new_pos_index, transaction: transaction})
             
         })
     }
 
+    //#endregion
     
 
     //#region Getters & Setters
 
-    static async setProperty({id, property_name, new_value, transaction}: Types.Params.setProperty){
+    /**
+     * Sets a new value for a object specific property.
+     * @param id Unique identifier of section to change a property from
+     * @param property_name Name of property to change value of
+     * @param new_value New value for provided property
+     * @param [transaction] Transaction object for querying
+     */
+    static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         

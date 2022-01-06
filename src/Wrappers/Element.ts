@@ -1,11 +1,13 @@
 
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
-import { connection as conn, elementQueries } from "../../Sql"
+import { connection as conn, elementQueries } from "../../db"
 import { Section } from "../Wrappers/Section"
 import { formatString } from "../Utils/Shared"
 
-
+/**
+ * Property names that may be changed by calling setProperty()
+ */
 const propertyNames = ["name", "pos_index", "value", "section_id", "type"]
 
 /**
@@ -26,7 +28,7 @@ export class Element{
     private _name: string
 
     /**
-     * Position (index) of element in section
+     * Position (index) of element inside of the associated section
      */
     private _pos_index: number
 
@@ -41,18 +43,18 @@ export class Element{
     private _value: string
 
     /**
-     * Type of element (e.g. password, cleartext etc.)
+     * Type of element (e.g. password, cleartext, binary file etc.)
      */
     private _type: Types.Element.ElementType
 
 
     /**
     * @param id Unique identifier of element
-    * @param name Name of new element
-    * @param value Actual value of new element
-    * @param type Type of element (e.g. password, cleartext etc.)
+    * @param name Name of element
+    * @param value Actual value of element
+    * @param type Type of element (e.g. password, cleartext, binary file etc.)
     * @param pos_index Position (index) of element in section
-    * @param section_id Unique identifier of section the new element will be part of
+    * @param section_id Unique identifier of section the element is part of
     */
     constructor(id: number, name: string, value: string, type: Types.Element.ElementType, pos_index: number, section_id: number){
         this._name = name
@@ -62,15 +64,16 @@ export class Element{
         this._section_id = section_id
         this._pos_index = pos_index
     }
+    
 
     /**
-    * Creates a new element with the provided properties 
+    * Creates a new element
     * @param name Name of new element
-    * @param value Actual value of new element
-    * @param type Type of element (e.g. password, cleartext etc.)
-    * @param connection Task/Transaction for querying
+    * @param value Value/data of the element (e.g. actual password, binary data etc.)
+    * @param type Type of element (e.g. password, cleartext, binary file etc.)
+    * @param [transaction] Transaction object for querying
     */
-    static async create({name, value, type, transaction} : Types.Element.Params.create): Promise<Element>{
+    static async create({name, value, type, transaction} : Params.Element.create): Promise<Element>{
         
         try{
             const queryObject = transaction ? transaction : conn
@@ -84,10 +87,11 @@ export class Element{
     }
 
     /**
-    * Tries to fetch the element with the provided unique identifier
-    * @param id Unique identifier of element to be found 
+    * Tries to fetch element data of the element with the provided id
+    * @param id Unique identifier of element to be returned
+    * @returns Instance of a found element or null if no element with provided id was found
     */
-    static async findById({id} : Types.Element.Params.findById): Promise<Element|null>{
+    static async findById({id} : Params.Element.findById) : Promise<Element|null>{
         const exists = await this.exists({id: id})
         if(!exists) return null
 
@@ -102,11 +106,11 @@ export class Element{
     }
 
     /**
-    * Checks for existence of an element with the provided unique identifier
-    * @param id Unique identifier to check existence for 
+    * Checks if an element with provided id does exist
+    * @param id Unique identifier of element to check existence for
     * @returns true if an element with the provided id was found, else false
     */
-    static async exists({id}: Types.Element.Params.exists): Promise<boolean>{
+    static async exists({id} : Params.Element.exists) : Promise<boolean>{
         try{
             const existsData = await conn.one(elementQueries.exists, [id])
             return existsData.exists
@@ -116,11 +120,11 @@ export class Element{
     }
 
     /**
-    * Deletes the element with provided unique identifier
+    * Deletes the element with provided id
     * @param id Unique identifier of element to be deleted
-    * @param connection Connection/Transaction for queyring
+    * @param [transaction] Transaction object for querying 
     */
-    static async deleteById({id, transaction} : Types.Element.Params.deleteById): Promise <void>{
+    static async deleteById({id, transaction} : Params.Element.deleteById) : Promise <void>{
         const element = await Element.findById({id: id})
         if(element == null)
             throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -141,12 +145,13 @@ export class Element{
     }
 
     
-
-    
     //#region Getters & Setters
-
-
-    static async setProperty({id, property_name, new_value, transaction}: Types.Params.setProperty):Promise<void>{
+    
+    /**
+     * 
+     * @param param0 
+     */
+    static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
@@ -167,7 +172,6 @@ export class Element{
         }
     }
 
-    
     get id(): number{
         return this._id
     }
@@ -191,5 +195,6 @@ export class Element{
     get pos_index(): number{
         return this._pos_index
     }
+
     //#endregion
 }

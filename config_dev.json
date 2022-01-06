@@ -12,6 +12,6 @@
       "port": 3000
     },
     "general":{
-        "sqlPath": "/Users/crypt0n/Documents/Repositories/REST-API/Sql"
+        "sqlPath": "/Users/crypt0n/Documents/Repositories/REST-API/db"
     }
 }

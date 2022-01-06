@@ -1,7 +1,7 @@
 import {readFileSync} from "fs"
 import { Exception } from './Exception'
 
-export let configuration: Configuration
+export let configuration: Types.Configuration
 export let loaded = false
 
 export const loadConfiguration = () =>{

@@ -1,6 +1,6 @@
 import { Exception } from "../Utils/Exception"
 import {  checkForUndefined, isValidEmail } from "../Utils/Shared"
-import { connection as conn, userQueries} from "../../Sql"
+import { connection as conn, userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
 
 

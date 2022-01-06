@@ -1,28 +1,56 @@
-import { connection as conn, entryQueries } from "../../Sql"
+import { connection as conn, entryQueries } from "../../db"
 import { checkForUndefined, formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { Section } from '../Wrappers/Section'
 import { Group } from "./Group"
 
+/**
+ * Property names that may be changed by calling setProperty()
+ */
 const propertyNames = ["name", "tags", "pos_index", "icon", "group_id"]
-     
+
+/**
+ * An entry is part of a group. It represents a group of sections, furthermore an object to store information about.
+ */
 export class Entry{
 
+    /**
+     * Unique identifier of entry
+     */
     private _id: number
 
+    /**
+     * Name of entry
+     */
     private _name: string
 
+    /**
+     * Array of tags of entry
+     */
     private _tags: string[]
 
+    /**
+     * Position (index) of entry inside associated group
+     */
     private _pos_index: number
 
+    /**
+     * Base64 encoded icon of entry
+     */
     private _icon: string
 
+    /**
+     * Array of section instances/ids that are part of the entry
+     */
     private _sections: Section[] | number[] = []
 
+    /**
+     * Unique identifier of the group the entry is part of
+     */
     private _group_id: number
 
+    
     constructor(id: number, title: string, tags: string[], pos_index: number, icon: string,  group_id: number, sections?: Section[] | number[]){
         this._id = id
         this._name = title
@@ -35,14 +63,21 @@ export class Entry{
     }
 
 
-    
-    static async create({title, tags, icon, transaction} : Types.Entry.Params.create): Promise<Entry>{
-        if (!checkForUndefined({title, tags})) throw new Exception("Failed to create new entry. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+    /**
+      * Creates a new entry
+      * @param name Name of the new entry
+      * @param tags Array of tags of the new entry
+      * @param icon Base64 encoded icon of the new entry
+      * @param [transaction] Transaction object for querying
+      * @returns Instance of the newly created entry
+     */
+    static async create({title: name, tags, icon, transaction} : Params.Entry.create) : Promise<Entry>{
+        if (!checkForUndefined({title: name, tags})) throw new Exception("Failed to create new entry. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         const queryObject = transaction ? transaction : conn
 
         try{
-            const queryData = [title, tags, icon]
+            const queryData = [name, tags, icon]
             const entryData = await queryObject.one(entryQueries.create, queryData)
 
             return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
@@ -52,7 +87,12 @@ export class Entry{
         }
     }
 
-    static async findById({id} : Types.Entry.Params.findById) : Promise<Entry | null>{
+    /**
+     * Fetches entry data of the entry with the provided id 
+     * @param id Unique identifier of entry to be found
+     * @returns Instance of a found entry or null if no entry with provided id was found
+    */
+    static async findById({id} : Params.Entry.findById) : Promise<Entry | null>{
 
         try{
             const entryData = await conn.oneOrNone(entryQueries.findById, [id])
@@ -67,7 +107,12 @@ export class Entry{
         }
     }
 
-    static async exists({id} : Types.Entry.Params.exists): Promise<boolean>{
+    /**
+     * Checks if an entry with provided id does exist
+     * @param id Unique identifier of entry to check existence of
+     * @returns true if an entry with the provided id was found, else false
+    */
+    static async exists({id} : Params.Entry.exists) : Promise<boolean>{
         
         try{
             const existsData = await conn.one(entryQueries.exists, [id]);
@@ -77,7 +122,13 @@ export class Entry{
         }
     }
 
-    static async getSections({id, flat=true} : Types.Entry.Params.getSections): Promise<Section[] | number[] | null>{
+    /**
+     * Fetches data of all sections associated to entry with provided id
+     * @param id Unique identifier of entry to fetch sections from
+     * @param flat If true, only ids of associated entries will be returne
+     * @returns Array of Entry instances, ids of associated entries or null if no entry was founds  
+    */
+    static async getSections({id, flat=true} : Params.Entry.getSections) : Promise<Section[] | number[] | null>{
         const exists = await Entry.exists({id: id})
         if(!exists) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -101,8 +152,12 @@ export class Entry{
         }
     }
 
-    static async deleteById({id, transaction} : Types.Entry.Params.deleteById) : Promise<void>{
-        // const exists = await Entry.exists({id: id})
+    /**
+     * Deletes an entry and all of its associated sections
+     * @param id Unique identifier of entry to be deleted
+     * @param [transaction] Transaction object for querying
+    */
+    static async deleteById({id, transaction} : Params.Entry.deleteById) : Promise<void>{
         const entry = await Entry.findById({id: id})
         if(entry == null) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -122,8 +177,17 @@ export class Entry{
         })
     }
     
-    
-    static async addSection({id, section, pos_index, transaction} : Types.Entry.Params.addSection) : Promise<void>{
+
+    //#region Section management
+
+    /**
+     * Adds a section to an entry 
+     * @param id Unique identifier of entry to add a section to
+     * @param section Section to be added to entry
+     * @param pos_index Position (index) to place new section to
+     * @param [transaction] Transaction object for querying
+    */
+    static async addSection({id, section, pos_index, transaction} : Params.Entry.addSection) : Promise<void>{
         const entry = await Entry.findById({id: id})
 
         if(entry == null)
@@ -143,18 +207,21 @@ export class Entry{
             for (const section of entry!.sections as Section[]){
                 if(section.pos_index >= pos_index!)
                     await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index+1, transaction: transaction})
-                
-                    //await Section.setPosition({id: section.id, new_pos: section.pos_index+1, transaction: transaction})
             }
             
             await Section.setProperty({id: section.id, property_name: "entry_id", new_value: id, transaction: transaction})
             await Section.setProperty({id: section.id, property_name:"pos_index", new_value:pos_index!, transaction:transaction})
-            // await Section.setEntry({id: section.id, new_entry_id: id, transaction: transaction})
-            // await Section.setPosition({id: section.id, new_pos: pos_index!, transaction: transaction})
         })
     }
 
-    static async removeSection({id, section_id, del=false, transaction} : Types.Entry.Params.removeSection) : Promise<void>{
+    /**
+     * Removes a section from an entry 
+     * @param id Unique identifier of entry to remove section from
+     * @param section_id Unique identifier of section to be removed from entry
+     * @param del if true, removed section will be deleted completly
+     * @param [transaction] Transaction object for querying
+    */
+    static async removeSection({id, section_id, del=false, transaction} : Params.Entry.removeSection) : Promise<void>{
         const sections = await Entry.getSections({id: id, flat: false}) as Section[]
         const section_to_remove = await Section.findById({id: section_id})
 
@@ -180,11 +247,12 @@ export class Entry{
         })
     }
 
-    static async repositionSection({id, section_id, new_pos, transaction} : Types.Entry.Params.repositionSection) : Promise<void>{
+
+    static async repositionSection({id, section_id, new_pos_index, transaction} : Params.Entry.repositionSection) : Promise<void>{
         const sections = await Entry.getSections({id: id, flat: false}) as Section[]
         const section_to_reposition = await Section.findById({id: section_id})
 
-        if(new_pos < 0 || new_pos >= sections.length)
+        if(new_pos_index < 0 || new_pos_index >= sections.length)
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         
@@ -195,18 +263,22 @@ export class Entry{
             transaction = transaction ? transaction : tx
 
             for (const section of sections){
-                if((section.pos_index <= new_pos) && (section.pos_index > section_to_reposition.pos_index)){
+                if((section.pos_index <= new_pos_index) && (section.pos_index > section_to_reposition.pos_index)){
                     await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index-1, transaction: transaction})
-                    // await Section.setPosition({id: section.id, new_pos: section.pos_index-1, transaction: transaction})
                 }
             }
-            await Section.setProperty({id: section_id, property_name:"pos_index", new_value:new_pos, transaction: transaction})
-                    
-            //await Section.setPosition({id: section_id, new_pos: new_pos, transaction: transaction})
+            await Section.setProperty({id: section_id, property_name:"pos_index", new_value:new_pos_index, transaction: transaction})
         })
     }
 
-    static async moveSection({id, section_id, new_entry_id, new_pos, transaction} : Types.Entry.Params.moveSection) : Promise<void>{
+    /**
+     * @param id Unique identifier of entry to move section FROM
+     * @param section_id Unique identifier of section to move
+     * @param new_entry_id Unique identifier of entry to move section TO
+     * @param [new_pos_index] Position (index) the section should be placed to in the new entry. Default: Last position
+     * @param [transaction] Transaction object for querying
+    */
+    static async moveSection({id, section_id, new_entry_id, new_pos_index, transaction} : Params.Entry.moveSection) : Promise<void>{
         const sections = await Entry.getSections({id: id, flat: false}) as Section[]
         const section_to_move = await Section.findById({id: section_id})
 
@@ -226,23 +298,31 @@ export class Entry{
 
             transaction = transaction ? transaction : tx
             if(id === new_entry_id){
-                if(!new_pos)
+                if(!new_pos_index)
                     throw new Exception("New position must be defined when moving inside an entry!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-                await Entry.repositionSection({id: id, section_id: section_id, new_pos: new_pos, transaction: transaction})
+                await Entry.repositionSection({id: id, section_id: section_id, new_pos_index, transaction: transaction})
                 return
             }
                 
             await Entry.removeSection({id: id, section_id: section_id, transaction: transaction})
-            await Entry.addSection({id: new_entry_id, section: section_to_move, pos_index: new_pos, transaction: transaction})
+            await Entry.addSection({id: new_entry_id, section: section_to_move, pos_index: new_pos_index, transaction: transaction})
             
         })
     }
 
+    //#endregion
+    
 
     //#region Getters & Setters
 
-
-    static async setProperty({id, property_name, new_value, transaction}: Types.Params.setProperty):Promise<void>{
+    /**
+     * Sets a new value for a object specific property.
+     * @param id Unique identifier of entry to change a property from
+     * @param property_name Name of property to change value of
+     * @param new_value New value for provided property
+     * @param [transaction] Transaction object for querying
+     */
+    static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
