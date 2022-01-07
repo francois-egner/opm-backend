@@ -7,6 +7,7 @@ import { configuration } from "../src/Utils/Configurator"
 import { Exception } from "../src/Utils/Exception"
 
 export let connection: IDatabase<any>
+export let {TransactionMode, isolationLevel} = pgPromise().txMode;
 
 export async function connect(): Promise<void>{
 
@@ -22,8 +23,13 @@ export async function connect(): Promise<void>{
         host: configuration.postgresql.host,
         database: configuration.postgresql.database,
         password: configuration.postgresql.password,
-        keepAlive: configuration.postgresql.keepAlive
+        keepAlive: configuration.postgresql.keepAlive,
+        max: 1000
+        
     });
+    
+    
+    
 
     connection = db
 }
@@ -36,7 +42,8 @@ export const userQueries = {
     create: loadSQL("/User/create.sql"),
     findById: loadSQL("/User/findById.sql"),
     checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
-    checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql")
+    checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql"),
+    exists: loadSQL("/User/exists.sql")
 }
 
 export const sectionQueries = {
@@ -82,8 +89,6 @@ export const groupQueries = {
     getOwner: loadSQL("/Group/getOwner.sql")
 }
 
-export const sharedQueries = {
-}
 
 /**
  * Reads in an SQL file

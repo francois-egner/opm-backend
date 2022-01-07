@@ -315,9 +315,11 @@ declare global {
 
             /**
              * @param id Unique identifier of group to be found
+             * @param connection Task or Transaction object for querying
              */
             export interface findById{
-                id: number
+                id: number,
+                connection?: ITask<any>
             }
 
             /**
@@ -526,6 +528,22 @@ declare global {
              */
             interface checkUsernameExistence{
                 username: string
+            }
+
+            /**
+            * @param id Unique identifier of user to be deleted
+            * @param [transaction] Transaction object for querying 
+            */
+             export interface deleteById{
+                id: number,
+                transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of user to check existence for
+             */
+            export interface exists{
+                id: number
             }
         }
     }

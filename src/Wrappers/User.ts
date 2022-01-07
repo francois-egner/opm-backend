@@ -99,6 +99,34 @@ export class User{
         }
     }
 
+    
+    static async deleteById({id, transaction} : Params.User.deleteById) : Promise<void>{
+        const user = await User.findById({id: id})
+        if(user == null)
+            throw new Exception("User to be deleted not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        try{
+            await conn.tx(async (tx)=>{
+                transaction = transaction ? transaction : tx
+                
+                await Group.deleteById({id: user.root_id, transaction: transaction})
+                
+                await transaction.none('DELETE FROM "User".users WHERE id=$1;', [id])
+            })
+        }catch(err: unknown){
+            throw new Exception("Failed to delete user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    static async exists({id} : Params.User.exists) : Promise<boolean>{
+        try{
+            const existsData = await conn.oneOrNone(userQueries.exists, [id])
+            return existsData.exists
+        }catch(err: unknown){
+            throw new Exception("Failed to check user existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
     /**
      * Checks if a user with the provided email address exists
      * @param email E-mail address to be checked for
