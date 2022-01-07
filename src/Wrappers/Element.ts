@@ -4,6 +4,7 @@ import HttpStatus from 'http-status-codes'
 import { connection as conn, elementQueries } from "../../db"
 import { Section } from "../Wrappers/Section"
 import { formatString } from "../Utils/Shared"
+import { User } from "./User"
 
 /**
  * Property names that may be changed by calling setProperty()
@@ -166,6 +167,21 @@ export class Element{
         }catch(err: unknown){
             throw new Exception("Failed to delete element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
+    }
+
+    /**
+     * Fetches the id or full objecct of user that owns the group
+     * @param id Unique identifier of group to get owner of
+     * @param [flat] If true, only id will be returned
+     * @returns User object or user id
+    */
+     static async getOwner({id, flat=true} : Params.Element.getOwner) : Promise<User|number>{
+        const element = await Element.findById({id: id})
+
+        if(element == null)
+            throw new Exception("No group with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        return await Section.getOwner({id: element.section_id, flat: flat})
     }
 
     

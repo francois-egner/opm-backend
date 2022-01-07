@@ -4,6 +4,7 @@ import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { Section } from '../Wrappers/Section'
 import { Group } from "./Group"
+import { User } from "./User"
 
 /**
  * Property names that may be changed by calling setProperty()
@@ -191,6 +192,21 @@ export class Entry{
             
             await transaction!.none(entryQueries.deleteById, [id])
         })
+    }
+
+    /**
+     * Fetches the id or full objecct of user that owns the entry
+     * @param id Unique identifier of entry to get owner of
+     * @param [flat] If true, only id will be returned
+     * @returns User object or user id
+    */
+     static async getOwner({id, flat=true} : Params.Group.getOwner) : Promise<User|number>{
+        const entry = await Entry.findById({id: id})
+
+        if(entry == null)
+            throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        return await Group.getOwner({id: entry.group_id, flat: flat})
     }
     
 

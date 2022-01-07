@@ -124,6 +124,15 @@ declare global {
                 id: number,
                 transaction?: ITask<any>
             }
+
+            /**
+             * @param id Unique identifier of group to get owner of
+             * @param [flat] If true, only id will be returned
+             */
+             export interface getOwner{
+                id: number,
+                flat?: boolean
+            }
         }
 
         namespace Element{
@@ -168,6 +177,15 @@ declare global {
             export interface deleteById{
                 id: number,
                 transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of group to get owner of
+             * @param [flat] If true, only id will be returned
+             */
+             export interface getOwner{
+                id: number,
+                flat?: boolean
             }
         }
 
@@ -449,6 +467,65 @@ declare global {
                 new_supergroup_id: number,
                 new_pos_index: number,
                 transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of group to get owner of
+             * @param [flat] If true, only id will be returned
+             */
+            export interface getOwner{
+                id: number,
+                flat?: boolean
+            }
+        }
+
+        namespace User{
+
+            /**
+            * @param email E-mail address of new user
+            * @param username Username of new user
+            * @param password_hash Hashed password of new user
+            * @param forename Forename of new user
+            * @param surname Surname of new user
+            * @param role Role of new user
+            * @param display_name Display name of new user
+            * @param enabled If true, user may log in , else not 
+            * @param profile_picture Base64 encoded profile picture
+            * @param transaction Transaction object for querying 
+            * @returns Instance of newly created user
+            */
+            interface create{
+                email: string,
+                username: string,
+                password_hash: string,
+                role?: Types.User.Role,
+                forename: string,
+                surname: string,
+                display_name: string,
+                enabled?: boolean,
+                profile_picture?: string,
+                transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of User to be fetched
+             */
+            interface findById{
+                id: number
+            }
+
+            /**
+             * @param email E-mail address to be checked for
+             */
+            interface checkEmailExistence{
+                email: string
+            }
+
+            /**
+             * @param username Username to be checked for
+             */
+            interface checkUsernameExistence{
+                username: string
             }
         }
     }

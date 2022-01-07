@@ -1,9 +1,16 @@
 
-import { connection as conn, groupQueries, } from "../../db"
+import { connection as conn, groupQueries, sharedQueries, } from "../../db"
 import {  formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { Entry } from "./Entry"
+import { User } from "./User"
+
+/**
+ * Property names that may be changed by calling setProperty()
+ */
+ const propertyNames = ["name", "pos_index", "icon", "supergroup_id"]
+
 
 /**
  * A group is a collection of entries that are associated to a specific topic. It is possible to create subgroups to further
@@ -515,6 +522,28 @@ export class Group{
         })
     }
 
+    /**
+     * Fetches the id or full objecct of user that owns the group
+     * @param id Unique identifier of group to get owner of
+     * @param [flat] If true, only id will be returned
+     * @returns User object or user id
+    */
+    static async getOwner({id, flat=true} : Params.Group.getOwner) : Promise<User|number>{
+        const group = await Group.findById({id: id})
+
+        if(group == null)
+            throw new Exception("No group with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        let supergroup = await Group.findById({id: group.supergroup_id})
+
+        while(supergroup.supergroup_id !== -1){
+            supergroup = await Group.findById({id: supergroup.supergroup_id})
+        }
+
+        const user_id = (await conn.one(groupQueries.getOwner, [supergroup.id])).id
+        return flat ? user_id : await User.findById({id: user_id})
+    }
+
     //#endregion
 
 
@@ -528,6 +557,10 @@ export class Group{
      * @param [transaction] Transaction object for querying
      */
     static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
+        
+        if(!propertyNames.includes(property_name))
+            throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
         const exists = await Group.exists({id: id})
         if(!exists)
             throw new Exception("Group to change property of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)

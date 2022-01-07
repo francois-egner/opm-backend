@@ -1,0 +1,1 @@
+SELECT * FROM "User".users WHERE id=$1;

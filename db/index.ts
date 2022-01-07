@@ -1,8 +1,9 @@
-import pgPromise, { IDatabase, QueryFile } from "pg-promise"
+import pgPromise, { IDatabase } from "pg-promise"
+import { types } from "pg"
 import { join as joinPath} from 'path'
-import {readFileSync} from "fs"
+import { readFileSync } from "fs"
 import pgMinify from "pg-minify"
-import { configuration, loaded } from "../src/Utils/Configurator"
+import { configuration } from "../src/Utils/Configurator"
 import { Exception } from "../src/Utils/Exception"
 
 export let connection: IDatabase<any>
@@ -10,6 +11,12 @@ export let connection: IDatabase<any>
 export async function connect(): Promise<void>{
 
     const pg = pgPromise();
+
+    //Add INT8 support
+    types.setTypeParser(types.builtins.INT8, (value: string) => {
+        return parseInt(value);
+    });
+
     const db = await pg({
         user: configuration.postgresql.username,
         host: configuration.postgresql.host,
@@ -26,7 +33,10 @@ export async function disconnect(): Promise<void>{
 }
 
 export const userQueries = {
-    create: loadSQL("/User/create.sql")
+    create: loadSQL("/User/create.sql"),
+    findById: loadSQL("/User/findById.sql"),
+    checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
+    checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql")
 }
 
 export const sectionQueries = {
@@ -68,7 +78,11 @@ export const groupQueries = {
     getEntries: loadSQL("/Group/getEntries.sql"),
     findById: loadSQL("/Group/findById.sql"),
     deleteById: loadSQL("/Group/deleteById.sql"),
-    setProperty: loadSQL("/Group/setProperty.sql")
+    setProperty: loadSQL("/Group/setProperty.sql"),
+    getOwner: loadSQL("/Group/getOwner.sql")
+}
+
+export const sharedQueries = {
 }
 
 /**
