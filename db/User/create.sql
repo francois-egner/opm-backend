@@ -1,1 +1,1 @@
-INSERT INTO "User".users (email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_id, creation_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+INSERT INTO "User".users (email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_id, creation_timestamp) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
