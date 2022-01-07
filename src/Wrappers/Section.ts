@@ -41,6 +41,7 @@ export class Section{
     */
     private _elements: Element[] = []
 
+    
     constructor(id: number, name: string, pos_index: number, entry_id: number, elements?:Element[]){
         this._id = id
         this._name = name
@@ -50,6 +51,7 @@ export class Section{
             this._elements = elements as Element[]
         
     }
+
 
     /**
     * Creates a new section
@@ -91,6 +93,7 @@ export class Section{
 
     }
 
+
     /**
     * Checks if a section with provided id does exist 
     * @param id Unique identifier of section to check existence for
@@ -104,6 +107,7 @@ export class Section{
             throw new Exception("Failed to check for existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
 
     /**
     * Tries to fetch section data of the section with the provided id
@@ -123,6 +127,7 @@ export class Section{
             throw new Exception("Failed to find section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
 
     /**
      * Fetches all elements associated to section identified by provided id
@@ -227,6 +232,7 @@ export class Section{
 
     }
 
+    
     /**
     * Removes an element from a section
     * @param id Unique identifier of section an element should be removed from

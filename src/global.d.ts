@@ -451,6 +451,29 @@ declare global {
                 transaction?: ITask<any>
             }
         }
+
+        namespace User{
+            interface create{
+                email: string,
+                username: string,
+                password_hash: string,
+                role?: Types.User.Role,
+                forename: string,
+                surname: string,
+                display_name: string,
+                enabled?: boolean,
+                profile_picture?: string,
+                transaction?: ITask<any>
+            }
+
+            interface checkEmailExistence{
+                email: string
+            }
+
+            interface checkUsernameExistence{
+                username: string
+            }
+        }
     }
 
     /**

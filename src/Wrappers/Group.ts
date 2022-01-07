@@ -6,6 +6,12 @@ import HttpStatus from 'http-status-codes'
 import { Entry } from "./Entry"
 
 /**
+ * Property names that may be changed by calling setProperty()
+ */
+ const propertyNames = ["name", "pos_index", "icon", "supergroup_id"]
+
+
+/**
  * A group is a collection of entries that are associated to a specific topic. It is possible to create subgroups to further
  * group subinformation
  */
@@ -528,6 +534,10 @@ export class Group{
      * @param [transaction] Transaction object for querying
      */
     static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
+        
+        if(!propertyNames.includes(property_name))
+            throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
         const exists = await Group.exists({id: id})
         if(!exists)
             throw new Exception("Group to change property of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)

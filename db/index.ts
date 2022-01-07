@@ -26,7 +26,9 @@ export async function disconnect(): Promise<void>{
 }
 
 export const userQueries = {
-    create: loadSQL("/User/create.sql")
+    create: loadSQL("/User/create.sql"),
+    checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
+    checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql")
 }
 
 export const sectionQueries = {

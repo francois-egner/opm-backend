@@ -1,0 +1,1 @@
+SELECT EXISTS (SELECT id FROM "User".users WHERE username=$1);
