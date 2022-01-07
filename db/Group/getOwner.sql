@@ -1,0 +1,1 @@
+SELECT id FROM "User".users WHERE root_id=$1;

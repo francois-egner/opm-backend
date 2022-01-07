@@ -4,6 +4,7 @@ import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import {Element} from "./Element"
 import { Entry } from "./Entry"
+import { User } from "./User"
 
 /**
  * Property names that may be changed by calling setProperty()
@@ -188,6 +189,21 @@ export class Section{
         }catch(err: unknown){
             throw new Exception("Failed to delete section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
+    }
+
+    /**
+     * Fetches the id or full objecct of user that owns the section
+     * @param id Unique identifier of section to get owner of
+     * @param [flat] If true, only id will be returned
+     * @returns Section object or user id
+    */
+    static async getOwner({id, flat=true} :  Params.Section.getOwner) : Promise<User|number>{
+        const section = await Section.findById({id: id})
+
+        if(section == null)
+            throw new Exception("No section with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        return await Entry.getOwner({id: section.entry_id, flat: flat})
     }
     
 

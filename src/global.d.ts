@@ -124,6 +124,15 @@ declare global {
                 id: number,
                 transaction?: ITask<any>
             }
+
+            /**
+             * @param id Unique identifier of group to get owner of
+             * @param [flat] If true, only id will be returned
+             */
+             export interface getOwner{
+                id: number,
+                flat?: boolean
+            }
         }
 
         namespace Element{
@@ -168,6 +177,15 @@ declare global {
             export interface deleteById{
                 id: number,
                 transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of group to get owner of
+             * @param [flat] If true, only id will be returned
+             */
+             export interface getOwner{
+                id: number,
+                flat?: boolean
             }
         }
 

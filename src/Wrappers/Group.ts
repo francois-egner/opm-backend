@@ -1,5 +1,5 @@
 
-import { connection as conn, groupQueries, } from "../../db"
+import { connection as conn, groupQueries, sharedQueries, } from "../../db"
 import {  formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
@@ -526,7 +526,7 @@ export class Group{
      * Fetches the id or full objecct of user that owns the group
      * @param id Unique identifier of group to get owner of
      * @param [flat] If true, only id will be returned
-     * @returns User objet or user id
+     * @returns User object or user id
     */
     static async getOwner({id, flat=true} : Params.Group.getOwner) : Promise<User|number>{
         const group = await Group.findById({id: id})
@@ -540,7 +540,7 @@ export class Group{
             supergroup = await Group.findById({id: supergroup.supergroup_id})
         }
 
-        const user_id = (await conn.one('SELECT id FROM "User".users WHERE root_id=$1;', [supergroup.id])).id
+        const user_id = (await conn.one(groupQueries.getOwner, [supergroup.id])).id
         return flat ? user_id : await User.findById({id: user_id})
     }
 

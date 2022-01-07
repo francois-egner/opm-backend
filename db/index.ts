@@ -78,7 +78,11 @@ export const groupQueries = {
     getEntries: loadSQL("/Group/getEntries.sql"),
     findById: loadSQL("/Group/findById.sql"),
     deleteById: loadSQL("/Group/deleteById.sql"),
-    setProperty: loadSQL("/Group/setProperty.sql")
+    setProperty: loadSQL("/Group/setProperty.sql"),
+    getOwner: loadSQL("/Group/getOwner.sql")
+}
+
+export const sharedQueries = {
 }
 
 /**
