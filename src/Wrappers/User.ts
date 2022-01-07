@@ -69,17 +69,40 @@ export class User{
 
                 const root_group = await Group.create({name: `${username}_root`, root: true, transaction: transaction})
                 
-                const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, new Date() ]
+                const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now() ]
 
                 const userData = await transaction.one(userQueries.create, queryData)
-                return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_date), userData.root_id, userData.profile_picture)
+                return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture)
             })
         }catch(err: unknown){
             throw new Exception("Failed to create new user", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }    
     }
 
-    
+    /**
+     * Fetches user data
+     * @param id Unique identifier of user to bef ound 
+     * @returns User or null, if no user with provided id was found
+     */
+    static async findById({id} : Params.User.findById) : Promise<User|null>{
+        try{
+            const userData = await conn.oneOrNone(userQueries.findById, [id])
+            if(userData == null)
+                return null
+            
+                     
+            return new User(id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname,
+                userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture)
+        
+        }catch(err: unknown){
+            throw new Exception("Failed to find user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    /**
+     * Checks if a user with the provided email address exists
+     * @param email E-mail address to be checked for
+    */
     static async checkEmailExistence({email} : Params.User.checkEmailExistence) : Promise<boolean>{
         try{
             const queryData = [email]
@@ -90,6 +113,10 @@ export class User{
         }
     }
 
+    /**
+     * Check if a user with the provided username exists
+     * @param username Username to be checked for
+    */
     static async checkUsernameExistence({username} : Params.User.checkUsernameExistence) : Promise<boolean>{
         try{
             const queryData = [username]
