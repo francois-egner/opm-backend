@@ -1,8 +1,9 @@
-import { ITask } from "pg-promise";
+import { IDatabase, ITask } from "pg-promise";
 import {Element as ElementClass} from './Wrappers/Element'
 import {Section as SectionClass} from './Wrappers/Section'
 import {Entry as EntryClass} from './Wrappers/Entry'
 import {Group as GroupClass} from './Wrappers/Group'
+
 
 declare global {
 
@@ -13,13 +14,13 @@ declare global {
         * @param id Unique identifier of section to change a property from
         * @param property_name Name of property to change value of
         * @param new_value New value for provided property
-        * @param [transaction] Transaction object for querying
+        * @param [transaction] Task or Transaction object for querying
         */
         interface setProperty{
             id: number,
             property_name: string,
             new_value: any,
-            transaction?: ITask<any>
+            connection?: ITask<any>
         }
 
         namespace Section{
@@ -39,9 +40,11 @@ declare global {
             
             /**
             * @param id Unique identifier of section to check existence for
+            * @param [connection] Task or Transaction object for querying
             */
             export interface exists{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
@@ -101,19 +104,22 @@ declare global {
 
             /**
             * @param id Unique identifier of section all associated elements should be returned from
-            * @param flat If true, only ids of associated elements will be returned 
-            * @returns Array of Element instances, ids of associated elements or null if no element was found
+            * @param flat If true, only ids of associated elements will be returned
+            * @param [connection] Task or Transaction object for querying
             */
             export interface getElements{
                 id: number,
-                flat?: boolean
+                flat?: boolean,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
             * @param id Unique identifier of section to be returned
+            * @param [connection] Task or Transaction object for querying
             */
             export interface findById{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
@@ -128,10 +134,12 @@ declare global {
             /**
              * @param id Unique identifier of group to get owner of
              * @param [flat] If true, only id will be returned
+             * @param [connection] Task or Transaction object for querying
              */
              export interface getOwner{
                 id: number,
-                flat?: boolean
+                flat?: boolean,
+                connection?: ITask<any> | IDatabase<any>
             }
         }
 
@@ -156,18 +164,22 @@ declare global {
 
             /**
             * @param id Unique identifier of element to be found 
+            * @param [connection] Task or Transaction object for querying
             * @returns Instance of a found element or null if no element with provided id was found
             */
             export interface findById{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
             * @param id Unique identifier for which it is to be checked whether an object with the same exists
+            * @param [connection] Task or Transaction object for querying
             * @returns true if an element with the provided id was found, else false
             */
             export interface exists{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
@@ -182,10 +194,12 @@ declare global {
             /**
              * @param id Unique identifier of group to get owner of
              * @param [flat] If true, only id will be returned
-             */
+             * @param [connection] Task or Transaction object for querying  
+            */
              export interface getOwner{
                 id: number,
-                flat?: boolean
+                flat?: boolean,
+                connection?: ITask<any> | IDatabase<any>
             }
         }
 
@@ -272,25 +286,31 @@ declare global {
 
             /**
              * @param id Unique identifier of entry to be found
+             * @param [connection] Task or Transaction object for querying
              */
             export interface findById{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
              * @param id Unique identifier of entry to fetch sections from
-             * @param flat If true, only ids of associated entries will be returned  
+             * @param flat If true, only ids of associated entries will be returned
+             * @param [connection] Task or Transaction object for querying
              */
             export interface getSections{
                 id: number,
-                flat?: boolean
+                flat?: boolean,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
              * @param id Unique identifier of entry to check existence of
+             * @param [connection] Task or Transaction object for querying
              */
             export interface exists{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
         }
 
@@ -315,34 +335,46 @@ declare global {
 
             /**
              * @param id Unique identifier of group to be found
+             * @param [connection] Task or Transaction object for querying
+             * @param [full] Group WITH all subgroups and entries
              */
             export interface findById{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>,
+                full?: boolean
             }
 
             /**
              * @param id Unique identifier of group to check existence for
+             * @param [connection] Task or Transaction object for querying
              */
             export interface exists{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
              * @param id Unique identifier of group to fetch subgroups from
              * @param [flat] If true, only group ids will be returned
+             * @param [full] If true, subgroups will be fetched completly with their subgroups
+             * @param [connection] Task or Transaction object for querying
              */
             export interface getSubGroups{
                 id: number,
-                flat?: boolean
+                flat?: boolean,
+                full?: boolean,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
              * @param id Unique identifier of group to fetch entries from
              * @param [flat] If true, only ids of entries will be returned
+             * @param [connection] Task or Transaction object for querying
              */
             export interface getEntries{
                 id: number,
-                flat?: boolean
+                flat?: boolean,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
@@ -472,10 +504,12 @@ declare global {
             /**
              * @param id Unique identifier of group to get owner of
              * @param [flat] If true, only id will be returned
+             * @param [connection] Task or Transaction object for querying
              */
             export interface getOwner{
                 id: number,
-                flat?: boolean
+                flat?: boolean,
+                connection?: ITask<any> | IDatabase<any>
             }
         }
 
@@ -509,23 +543,47 @@ declare global {
 
             /**
              * @param id Unique identifier of User to be fetched
+             * @param [connection] Task or Transaction object for querying
              */
             interface findById{
-                id: number
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
              * @param email E-mail address to be checked for
+             * @param [connection] Task or Transaction for querying
              */
             interface checkEmailExistence{
-                email: string
+                email: string,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
              * @param username Username to be checked for
+             * @param [connection] Task or Transaction for querying
              */
             interface checkUsernameExistence{
-                username: string
+                username: string,
+                connection?: ITask<any> | IDatabase<any>
+            }
+
+            /**
+            * @param id Unique identifier of user to be deleted
+            * @param [transaction] Transaction object for querying 
+            */
+             export interface deleteById{
+                id: number,
+                transaction?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of user to check existence for
+             * @param [connection] Task or Transaction for querying
+             */
+            export interface exists{
+                id: number,
+                connection?: ITask<any> | IDatabase<any>
             }
         }
     }

@@ -19,7 +19,7 @@ export class Entry{
     /**
      * Unique identifier of entry
      */
-    private _id: number
+    private readonly _id: number
 
     /**
      * Name of entry
@@ -73,8 +73,14 @@ export class Entry{
       * @returns Instance of the newly created entry
      */
     static async create({name, tags, icon, group_id, pos_index, transaction} : Params.Entry.create) : Promise<Entry>{
+        return transaction
+        ? await Entry.create_private({name: name, tags: tags, icon: icon, group_id: group_id, pos_index: pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Entry.create_private({name: name, tags: tags, icon: icon, group_id: group_id, pos_index: pos_index, transaction: tx})})
+    }
+
+    private static async create_private({name, tags, icon, group_id, pos_index, transaction} : Params.Entry.create) : Promise<Entry>{
         
-        const group = await Group.findById({id: group_id})
+        const group = await Group.findById({id: group_id, connection: transaction})
 
         if(group == null)
             throw new Exception("Group to add entry to not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -86,37 +92,39 @@ export class Entry{
 
         if(pos_index < 0 || pos_index > entries_count) 
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-
-        return await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
                 
-            for (const entry of group!.entries as Entry[]){
-                if(entry.pos_index >= pos_index!)
-                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index+1, transaction: transaction})   
-            }
+        for (const entry of group!.entries as Entry[]){
+            if(entry.pos_index >= pos_index!)
+                await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index+1, connection: transaction})   
+        }
 
-            const queryData = [name, tags, icon, group_id, pos_index]
-            const entryData = await transaction.one(entryQueries.create, queryData)
+        const queryData = [name, tags, icon, group_id, pos_index]
+        const entryData = await transaction.one(entryQueries.create, queryData)
 
-            return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
-        })
-
+        return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
         
     }
+
+
 
     /**
      * Fetches entry data of the entry with the provided id 
      * @param id Unique identifier of entry to be found
      * @returns Instance of a found entry or null if no entry with provided id was found
     */
-    static async findById({id} : Params.Entry.findById) : Promise<Entry | null>{
+    static async findById({id, connection} : Params.Entry.findById) : Promise<Entry | null>{
+        return connection
+        ? await Entry.findById_private({id: id, connection: connection})
+        : await conn.task(async (task)=>{return await Entry.findById_private({id: id, connection: task})})        
+    }
 
+    private static async findById_private({id, connection} : Params.Entry.findById) : Promise<Entry | null>{
         try{
-            const entryData = await conn.oneOrNone(entryQueries.findById, [id])
+            const entryData = await connection.oneOrNone(entryQueries.findById, [id])
             if(entryData == null)
                 return null
             
-            const sections = await Entry.getSections({id: id, flat: false})
+            const sections = await Entry.getSections({id: id, flat: false, connection: connection})
             
             return new Entry(id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id, sections == null ? undefined : sections)
         }catch(err: unknown){
@@ -124,20 +132,24 @@ export class Entry{
         }
     }
 
+    
+
     /**
      * Checks if an entry with provided id does exist
      * @param id Unique identifier of entry to check existence of
      * @returns true if an entry with the provided id was found, else false
     */
-    static async exists({id} : Params.Entry.exists) : Promise<boolean>{
+    static async exists({id, connection=conn} : Params.Entry.exists) : Promise<boolean>{
         
         try{
-            const existsData = await conn.one(entryQueries.exists, [id]);
+            const existsData = await connection.one(entryQueries.exists, [id]);
             return existsData.exists;
         }catch(err: unknown){
             throw new Exception("Failed to check for existence of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+
 
     /**
      * Fetches data of all sections associated to entry with provided id
@@ -145,21 +157,27 @@ export class Entry{
      * @param flat If true, only ids of associated entries will be returne
      * @returns Array of Entry instances, ids of associated entries or null if no entry was founds  
     */
-    static async getSections({id, flat=true} : Params.Entry.getSections) : Promise<Section[] | number[] | null>{
-        const exists = await Entry.exists({id: id})
+    static async getSections({id, flat=true, connection} : Params.Entry.getSections) : Promise<Section[] | number[] | null>{
+        return connection
+        ? await Entry.getSections_private({id: id, flat: flat, connection: connection})
+        : await conn.task(async (task)=>{return await Entry.getSections_private({id: id, flat: flat, connection: task})})
+    }
+
+    private static async getSections_private({id, flat=true, connection} : Params.Entry.getSections) : Promise<Section[] | number[] | null>{
+        const exists = await Entry.exists({id: id, connection: connection})
         if(!exists) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
             const queryData = [id]
-            const sections_data = await conn.manyOrNone(entryQueries.getSections, queryData)
+            const sections_data = await connection.manyOrNone(entryQueries.getSections, queryData)
 
             if (sections_data == null)
                 return null
 
             const sections: Section[] | number[] = []
             for (const section_data of sections_data){
-                sections.push(flat? section_data.id : await Section.findById({id: section_data.id}))
+                sections.push(flat? section_data.id : await Section.findById({id: section_data.id, connection: connection}))
             }
             
             return sections
@@ -169,30 +187,37 @@ export class Entry{
         }
     }
 
+
+
     /**
      * Deletes an entry and all of its associated sections
      * @param id Unique identifier of entry to be deleted
      * @param [transaction] Transaction object for querying
     */
     static async deleteById({id, transaction} : Params.Entry.deleteById) : Promise<void>{
-        const entry = await Entry.findById({id: id})
+        return transaction
+        ? await Entry.deleteById_private({id: id, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Entry.deleteById_private({id: id, transaction: tx})})    
+    }
+
+    private static async deleteById_private({id, transaction} : Params.Entry.deleteById) : Promise<void>{
+        const entry = await Entry.findById({id: id, connection: transaction})
         if(entry == null) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
         //Atomicity needed here
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
+        
+        await Group.removeEntry({id: entry.group_id, entry_id: id, transaction: transaction})
 
-            await Group.removeEntry({id: entry.group_id, entry_id: id, transaction: transaction})
-
-            const sections_id = await Entry.getSections({id: id}) as number[]
-
-            for(const section_id of sections_id)
-                await Section.deleteById({id: section_id, transaction: transaction})
+        const sections_id = await Entry.getSections({id: id, connection: transaction}) as number[]
+            
+        for(const section_id of sections_id)
+            await Section.deleteById({id: section_id, transaction: transaction})
             
             await transaction!.none(entryQueries.deleteById, [id])
-        })
     }
+
+
 
     /**
      * Fetches the id or full objecct of user that owns the entry
@@ -200,15 +225,20 @@ export class Entry{
      * @param [flat] If true, only id will be returned
      * @returns User object or user id
     */
-     static async getOwner({id, flat=true} : Params.Group.getOwner) : Promise<User|number>{
-        const entry = await Entry.findById({id: id})
+    static async getOwner({id, flat=true, connection} : Params.Group.getOwner) : Promise<User|number>{
+        return connection
+        ? await Entry.getOwner_private({id: id, flat: flat, connection: connection})
+        : await conn.task(async (task)=>{return await Entry.getOwner_private({id: id, flat: flat, connection: task})})
+    }
+    
+    private static async getOwner_private({id, flat=true, connection} : Params.Group.getOwner) : Promise<User|number>{
+        const entry = await Entry.findById({id: id, connection: connection})
 
         if(entry == null)
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        return await Group.getOwner({id: entry.group_id, flat: flat})
+        return await Group.getOwner({id: entry.group_id, flat: flat, connection: connection})
     }
-    
 
     //#region Section management
 
@@ -220,7 +250,13 @@ export class Entry{
      * @param [transaction] Transaction object for querying
     */
     static async addSection({id, section, pos_index, transaction} : Params.Entry.addSection) : Promise<void>{
-        const entry = await Entry.findById({id: id})
+        return transaction
+        ? await Entry.addSection_private({id: id, section: section, pos_index: pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Entry.addSection_private({id: id, section: section, pos_index: pos_index, transaction: tx})})
+    }
+
+    private static async addSection_private({id, section, pos_index, transaction} : Params.Entry.addSection) : Promise<void>{
+        const entry = await Entry.findById({id: id, connection: transaction})
 
         if(entry == null)
             throw new Exception("Entry to add section to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -233,18 +269,17 @@ export class Entry{
         if(pos_index < 0 || pos_index > sections_count) 
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
-                
-            for (const section of entry!.sections as Section[]){
-                if(section.pos_index >= pos_index!)
-                    await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index+1, transaction: transaction})
-            }
+        for (const section of entry!.sections as Section[]){
+            if(section.pos_index >= pos_index!)
+                await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index+1, connection: transaction})
+        }
             
-            await Section.setProperty({id: section.id, property_name: "entry_id", new_value: id, transaction: transaction})
-            await Section.setProperty({id: section.id, property_name:"pos_index", new_value:pos_index!, transaction:transaction})
-        })
+        await Section.setProperty({id: section.id, property_name: "entry_id", new_value: id, connection: transaction})
+        await Section.setProperty({id: section.id, property_name:"pos_index", new_value:pos_index!, connection:transaction})
+
     }
+
+
 
     /**
      * Removes a section from an entry 
@@ -254,8 +289,14 @@ export class Entry{
      * @param [transaction] Transaction object for querying
     */
     static async removeSection({id, section_id, del=false, transaction} : Params.Entry.removeSection) : Promise<void>{
-        const sections = await Entry.getSections({id: id, flat: false}) as Section[]
-        const section_to_remove = await Section.findById({id: section_id})
+        return transaction
+        ? await Entry.removeSection_private({id: id, section_id: section_id, del: del, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Entry.removeSection_private({id: id, section_id: section_id, del: del, transaction: tx})})
+    }
+
+    private static async removeSection_private({id, section_id, del, transaction} : Params.Entry.removeSection) : Promise<void>{
+        const sections = await Entry.getSections({id: id, flat: false, connection: transaction}) as Section[]
+        const section_to_remove = await Section.findById({id: section_id, connection: transaction})
 
         if(section_to_remove == null)
             throw new Exception("Unable to find Section with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -265,19 +306,17 @@ export class Entry{
             throw new Exception("Could not find section in given section!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
+        for(const section of sections){
+            if(section.pos_index > section_to_remove.pos_index)
+                await Section.setProperty({id: section.id, property_name: "pos_index", new_value: section.pos_index-1, connection: transaction})   
+        }
 
-            for(const section of sections){
-                if(section.pos_index > section_to_remove.pos_index)
-                    await Section.setProperty({id: section.id, property_name: "pos_index", new_value: section.pos_index-1, transaction: transaction})   
-                
-            }
-
-            if(del)
-                await Section.deleteById({id: section_id, transaction: transaction})
-        })
+        if(del)
+            await Section.deleteById({id: section_id, transaction: transaction})
+        
     }
+
+
 
     /**
      * Repositions a section inside an entry
@@ -286,9 +325,15 @@ export class Entry{
      * @param new_pos_index Position (index) the section should be placed to
      * @param [transaction] Transaction object for querying
     */
-    static async repositionSection({id, section_id, new_pos_index, transaction} : Params.Entry.repositionSection) : Promise<void>{
-        const sections = await Entry.getSections({id: id, flat: false}) as Section[]
-        const section_to_reposition = await Section.findById({id: section_id})
+    private static async repositionSection({id, section_id, new_pos_index, transaction} : Params.Entry.repositionSection) : Promise<void>{
+        return transaction
+        ? await Entry.repositionSection_private({id: id, section_id: section_id, new_pos_index: new_pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Entry.repositionSection_private({id: id, section_id: section_id, new_pos_index: new_pos_index, transaction: tx})})
+    }
+
+    private static async repositionSection_private({id, section_id, new_pos_index, transaction} : Params.Entry.repositionSection) : Promise<void>{
+        const sections = await Entry.getSections({id: id, flat: false, connection: transaction}) as Section[]
+        const section_to_reposition = await Section.findById({id: section_id, connection: transaction})
 
         if(new_pos_index < 0 || new_pos_index >= sections.length)
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -297,17 +342,17 @@ export class Entry{
         if(section_to_reposition == null)
             throw new Exception("Element to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
-
-            for (const section of sections){
-                if((section.pos_index <= new_pos_index) && (section.pos_index > section_to_reposition.pos_index)){
-                    await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index-1, transaction: transaction})
-                }
+        for (const section of sections){
+            if((section.pos_index <= new_pos_index) && (section.pos_index > section_to_reposition.pos_index)){
+                await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index-1, connection: transaction})
             }
-            await Section.setProperty({id: section_id, property_name:"pos_index", new_value:new_pos_index, transaction: transaction})
-        })
+        }
+        
+        await Section.setProperty({id: section_id, property_name:"pos_index", new_value:new_pos_index, connection: transaction})
+        
     }
+
+
 
     /**
      * @param id Unique identifier of entry to move section FROM
@@ -317,35 +362,40 @@ export class Entry{
      * @param [transaction] Transaction object for querying
     */
     static async moveSection({id, section_id, new_entry_id, new_pos_index, transaction} : Params.Entry.moveSection) : Promise<void>{
-        const sections = await Entry.getSections({id: id, flat: false}) as Section[]
-        const section_to_move = await Section.findById({id: section_id})
+        return transaction
+        ? await Entry.moveSection_private({id: id, section_id: section_id, new_entry_id: new_entry_id, new_pos_index: new_pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Entry.moveSection_private({id: id, section_id: section_id, new_entry_id: new_entry_id, new_pos_index: new_pos_index, transaction: tx})})
+    }
+
+    private static async moveSection_private({id, section_id, new_entry_id, new_pos_index, transaction} : Params.Entry.moveSection) : Promise<void>{
+        const sections = await Entry.getSections({id: id, flat: false, connection: transaction}) as Section[]
+        const section_to_move = await Section.findById({id: section_id, connection: transaction})
 
         if(section_to_move == null)
             throw new Exception("Could not find section with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
-        const exists = await Entry.exists({id: new_entry_id})
+        const exists = await Entry.exists({id: new_entry_id, connection: transaction})
         if(!exists)
             throw new Exception("Entry to move section to does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         const found_section = sections.filter((element)=> element.id === section_id)
+        
         if(found_section.length == 0)
                 throw new Exception("Section to be moved is not part of provided entry!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-
-            transaction = transaction ? transaction : tx
-            if(id === new_entry_id){
-                if(!new_pos_index)
-                    throw new Exception("New position must be defined when moving inside an entry!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-                await Entry.repositionSection({id: id, section_id: section_id, new_pos_index, transaction: transaction})
-                return
-            }
-                
-            await Entry.removeSection({id: id, section_id: section_id, transaction: transaction})
-            await Entry.addSection({id: new_entry_id, section: section_to_move, pos_index: new_pos_index, transaction: transaction})
+        if(id === new_entry_id){
+            if(!new_pos_index)
+                throw new Exception("New position must be defined when moving inside an entry!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
             
-        })
+                await Entry.repositionSection({id: id, section_id: section_id, new_pos_index, transaction: transaction})
+            return
+        }
+                
+        await Entry.removeSection({id: id, section_id: section_id, transaction: transaction})
+        await Entry.addSection({id: new_entry_id, section: section_to_move, pos_index: new_pos_index, transaction: transaction})
+            
+        
     }
 
     //#endregion
@@ -360,26 +410,33 @@ export class Entry{
      * @param new_value New value for provided property
      * @param [transaction] Transaction object for querying
      */
-    static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
+     static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+        return connection
+        ? await Entry.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: connection})
+        : await conn.tx(async (tx)=>{return await Entry.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: tx})})
+     }
+
+    private static async setProperty_private({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const exists = await Entry.exists({id: id})
+        const exists = await Entry.exists({id: id, connection: connection})
         if(!exists)
             throw new Exception("Unable to find entry to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
 
-            const queryObject = transaction ? transaction : conn
 
             const queryString = formatString(entryQueries.setProperty as string, property_name)
             const queryData = [id,  new_value]
 
-            await queryObject.none(queryString, queryData)
+            await connection.none(queryString, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to change property of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+
 
     get id(): number{
         return this._id

@@ -20,7 +20,7 @@ export class Section{
     /**
     * Unique identifier of section
     */
-    private _id: number
+    private readonly _id: number
 
     /**
     * Name of section
@@ -54,17 +54,27 @@ export class Section{
     }
 
 
+
     /**
     * Creates a new section
     * @param name Name of new sections
+    * @param entry_id Unique identifier of entry to add new section to
+    * @param Position (index) to position new section to
+    * @param [transaction] Transaction object for querying
     */
     static async create({name, entry_id, pos_index, transaction} : Params.Section.create) : Promise<Section>{
-        //TODO: Check entry_id for validation? Not necessary if section is added by a member function of Entry?
+        return transaction
+        ? await Section.create_private({name: name, entry_id: entry_id, pos_index: pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Section.create_private({name: name, entry_id: entry_id, pos_index: pos_index, transaction: tx})})
+    }
+
+    private static async create_private({name, entry_id, pos_index, transaction} : Params.Section.create) : Promise<Section>{
+        
         //TODO: Proper param validation
         if (!checkForUndefined({name})) 
             throw new Exception("Failed to create new section. At least one argument is undefined!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-        const entry = await Entry.findById({id: entry_id})
+        const entry = await Entry.findById({id: entry_id, connection: transaction})
 
         if(entry == null)
             throw new Exception("Entry to add section to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -77,32 +87,29 @@ export class Section{
         if(pos_index < 0 || pos_index > sections_count) 
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
     
-        return await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
                    
-            for (const section of entry!.sections as Section[]){
-                if(section.pos_index >= pos_index!)
-                    await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index+1, transaction: transaction})
-            }
+        for (const section of entry!.sections as Section[]){
+            if(section.pos_index >= pos_index!)
+                await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index+1, connection: transaction})
+        }
             
-            const queryData = [name, entry_id, pos_index]
-            const sectionData = await transaction.one(sectionQueries.create, queryData)
+        const queryData = [name, entry_id, pos_index]
+        const sectionData = await transaction.one(sectionQueries.create, queryData)
 
-            return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
+        return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
         
-        })
-
     }
+
 
 
     /**
     * Checks if a section with provided id does exist 
     * @param id Unique identifier of section to check existence for
     */
-    static async exists({id} : Params.Section.exists) : Promise<boolean>{
+    static async exists({id, connection=conn} : Params.Section.exists) : Promise<boolean>{
         
         try{
-            const existsData = await conn.one(sectionQueries.exists, [id]);
+            const existsData = await connection.one(sectionQueries.exists, [id]);
             return existsData.exists;
         }catch(err: unknown){
             throw new Exception("Failed to check for existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -110,19 +117,26 @@ export class Section{
     }
 
 
+
     /**
     * Tries to fetch section data of the section with the provided id
     * @param id Unique identifier of section to be returned
     * @returns Section instance or null if no section with provided id was found
     */
-    static async findById({id} : Params.Section.findById) : Promise<Section | null>{
-        const exists = await this.exists({id: id})
-        if(!exists) return null
+    static async findById({id, connection} : Params.Section.findById) : Promise<Section | null>{
+        return connection
+        ? await Section.findById_private({id: id, connection: connection})
+        : await conn.task(async (task)=>{return await Section.findById_private({id: id, connection: task})})
+    }
 
+    private static async findById_private({id, connection} : Params.Section.findById) : Promise<Section | null>{
         try{
-            const sectionData = await conn.one(sectionQueries.findById, [id])
-            //FIXME: getElements() might be null
-            const elements = await this.getElements({id:id, flat:false}) as Element[]
+            const sectionData = await connection.oneOrNone(sectionQueries.findById, [id])
+            
+            if (sectionData == null)
+                return null
+
+            const elements = await Section.getElements({id:id, flat:false, connection: connection}) as Element[]
             return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id, elements)
         }catch(err: unknown){
             throw new Exception("Failed to find section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -130,20 +144,29 @@ export class Section{
     }
 
 
+
     /**
      * Fetches all elements associated to section identified by provided id
      * @param id Unique identifier of section all associated elements should be returned from
-     * @param flat If true, only ids of associated elements will be returned 
+     * @param flat If true, only ids of associated elements will be returned
+     * @param [connection] Task or Transaction object for querying
      * @returns Array of Element instances, ids of associated elements or null if no element was found
      */
-    static async getElements({id, flat=true} : Params.Section.getElements) : Promise<Element[] | number[] | null>{
-        const exists = await this.exists({id: id})
+    static async getElements({id, flat=true, connection} : Params.Section.getElements) : Promise<Element[] | number[] | null>{
+        return connection
+        ? await Section.getElements_private({id: id, flat: flat, connection: connection})
+        : await conn.task(async (task)=>{return await Section.getElements_private({id: id, flat: flat, connection: task})})
+    }
+
+    private static async getElements_private({id, flat=true, connection} : Params.Section.getElements) : Promise<Element[] | number[] | null>{
+        const exists = await Section.exists({id: id, connection: connection})
+        
         if(!exists)
             throw new Exception("Failed to find section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
         try{
             const elements: Element[] | number[] = []
-            const elementsData = await conn.manyOrNone(flat ? sectionQueries.getElementsFlat: sectionQueries.getElements, [id])
+            const elementsData = await connection.manyOrNone(flat ? sectionQueries.getElementsFlat: sectionQueries.getElements, [id])
             
             if(elementsData == null)
                 return null
@@ -160,13 +183,20 @@ export class Section{
     }
 
 
+
     /**
      * Deletes section and all of its elements
      * @param id Unique identifier of section to be deleted
      * @param [transaction] Transaction object for querying
      */
     static async deleteById({id, transaction} : Params.Section.deleteById) : Promise<void>{
-        const section = await Section.findById({id: id})
+        return transaction
+        ? await Section.deleteById_private({id: id, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Section.deleteById_private({id: id, transaction: tx})})
+    }
+
+    private static async deleteById_private({id, transaction} : Params.Section.deleteById) : Promise<void>{
+        const section = await Section.findById({id: id, connection: transaction})
         if (section == null)
             throw new Exception("Failed to delete section. No section with provided id exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
@@ -174,22 +204,21 @@ export class Section{
         try{
             //Atomicity needs to be guaranteed, therefore we must use transactions from now on
             //Start a new transaction if no transaction was provided
-            await conn.tx(async (tx)=>{
-                transaction = transaction ? transaction : tx
-
-                await Entry.removeSection({id: section.entry_id, section_id: id, transaction: transaction})
+            
+            await Entry.removeSection({id: section.entry_id, section_id: id, transaction: transaction})
                 
-                const elements_id = await this.getElements({id: id}) as number[]
-                for(const element_id of elements_id) 
-                    await Element.deleteById({id: element_id, transaction:transaction})
-
-                await transaction!.none(sectionQueries.deleteById, [id])
+            const elements_id = await Section.getElements({id: id, connection: transaction}) as number[]
+            for(const element_id of elements_id) 
+                await Element.deleteById({id: element_id, transaction:transaction})
                 
-            })
+            await transaction!.none(sectionQueries.deleteById, [id])
+                
         }catch(err: unknown){
             throw new Exception("Failed to delete section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+
 
     /**
      * Fetches the id or full objecct of user that owns the section
@@ -197,15 +226,22 @@ export class Section{
      * @param [flat] If true, only id will be returned
      * @returns Section object or user id
     */
-    static async getOwner({id, flat=true} :  Params.Section.getOwner) : Promise<User|number>{
-        const section = await Section.findById({id: id})
+    static async getOwner({id, flat=true, connection} :  Params.Section.getOwner) : Promise<User|number>{
+        return connection
+        ? await Section.getOwner_private({id: id, flat: flat, connection: connection})
+        : await conn.task(async (task)=>{return await Section.getOwner_private({id: id, flat: flat, connection: task})})
+    }
+
+    private static async getOwner_private({id, flat=true, connection} :  Params.Section.getOwner) : Promise<User|number>{
+        const section = await Section.findById({id: id, connection: connection})
 
         if(section == null)
             throw new Exception("No section with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        return await Entry.getOwner({id: section.entry_id, flat: flat})
+        return await Entry.getOwner({id: section.entry_id, flat: flat,connection: connection})
     }
     
+
 
     //#region Element management
 
@@ -217,8 +253,14 @@ export class Section{
     * @param [transaction] Transaction object for querying
     */
     static async addElement({id, element, pos_index, transaction} : Params.Section.addElement) : Promise<void>{
+        return transaction
+        ? await Section.addElement_private({id: id, element: element, pos_index: pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Section.addElement_private({id: id, element: element, pos_index: pos_index, transaction: tx})})    
+    }
+
+    static async addElement_private({id, element, pos_index, transaction} : Params.Section.addElement) : Promise<void>{
         //TODO: More parameter validation
-        const section = await Section.findById({id: id})
+        const section = await Section.findById({id: id, connection: transaction})
 
         if(section == null) 
             throw new Exception("Section to add element to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -231,24 +273,19 @@ export class Section{
         if(pos_index < 0 || pos_index > elements_count) throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         
-        
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
-            
-            for (const el of section!.elements){
-                if(el.pos_index >= pos_index!)
-                    await Element.setProperty({id: el.id, property_name:"pos_index", new_value: el.pos_index+1, transaction: transaction})    
+        for (const el of section!.elements){
+            if(el.pos_index >= pos_index!)
+                await Element.setProperty({id: el.id, property_name:"pos_index", new_value: el.pos_index+1, connection: transaction})    
                     
-            }
+        }
             
-            await  Element.setProperty({id: element.id, property_name: "section_id", new_value: id, transaction: transaction})
-            await Element.setProperty({id: element.id, property_name: "pos_index", new_value: pos_index!, transaction: transaction})
-        })
+        await  Element.setProperty({id: element.id, property_name: "section_id", new_value: id, connection: transaction})
+        await Element.setProperty({id: element.id, property_name: "pos_index", new_value: pos_index!, connection: transaction})
         
-
     }
 
     
+
     /**
     * Removes an element from a section
     * @param id Unique identifier of section an element should be removed from
@@ -257,9 +294,16 @@ export class Section{
     * @param [transaction] Transaction object for querying
     */
     static async removeElement({id, element_id, del=false, transaction} : Params.Section.removeElement) : Promise<void>{
-        const elements = await Section.getElements({id: id, flat: false}) as Element[]
-        const element_to_remove = await Element.findById({id: element_id})
+       return transaction
+       ? await Section.removeElement_private({id: id, element_id: element_id, del: del, transaction: transaction})
+       : await conn.tx(async (tx)=>{return await Section.removeElement_private({id: id, element_id: element_id, del: del, transaction: tx})})
+    }
 
+    private static async removeElement_private({id, element_id, del, transaction} : Params.Section.removeElement) : Promise<void>{
+        
+        const elements = await Section.getElements({id: id, flat: false, connection: transaction}) as Element[]
+        const element_to_remove = await Element.findById({id: element_id, connection: transaction})
+        
         if(element_to_remove == null)
             throw new Exception("Unable to find Element with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
@@ -268,21 +312,16 @@ export class Section{
             throw new Exception("Could not find element in given section!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
+        for(const element of elements){
+            if(element.pos_index > element_to_remove.pos_index)
+                await Element.setProperty({id: element.id, property_name: "pos_index", new_value: element.pos_index-1, connection: transaction})
+        }
 
-            for(const element of elements){
-                if(element.pos_index > element_to_remove.pos_index)
-                    await Element.setProperty({id: element.id, property_name: "pos_index", new_value: element.pos_index-1, transaction: transaction})
-            }
-
-            if(del)
-                await Element.deleteById({id: element_id, transaction: transaction})
-
-        })
-        
-
+        if(del)
+            await Element.deleteById({id: element_id, transaction: transaction})
     }
+
+
 
     /**
     * Repositions an element inside a section
@@ -292,8 +331,14 @@ export class Section{
     * @param [transaction] Transaction object for querying
     */
     private static async repositionElement({id, element_id, new_pos, transaction} : Params.Section.repositionElement) : Promise<void>{
-        const elements = await Section.getElements({id: id, flat: false}) as Element[]
-        const element_to_reposition = await Element.findById({id: element_id})
+        return transaction
+        ? await Section.repositionElement_private({id: id, element_id: element_id, new_pos: new_pos, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Section.repositionElement_private({id: id, element_id: element_id, new_pos: new_pos, transaction: tx})})        
+    }
+
+    private static async repositionElement_private({id, element_id, new_pos, transaction} : Params.Section.repositionElement) : Promise<void>{
+        const elements = await Section.getElements({id: id, flat: false, connection: transaction}) as Element[]
+        const element_to_reposition = await Element.findById({id: element_id, connection: transaction})
 
         if(new_pos < 0 || new_pos >= elements.length)
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -302,19 +347,17 @@ export class Section{
         if(element_to_reposition == null)
             throw new Exception("Element to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
-
-            for (const element of elements){
-                if((element.pos_index <= new_pos) && (element.pos_index > element_to_reposition.pos_index)){
-                    await Element.setProperty({id: element.id, property_name:"pos_index", new_value: element.pos_index-1, transaction: transaction})
-                }
+        for (const element of elements){
+            if((element.pos_index <= new_pos) && (element.pos_index > element_to_reposition.pos_index)){
+                await Element.setProperty({id: element.id, property_name:"pos_index", new_value: element.pos_index-1, connection: transaction})
             }
+        }
             
-            await Element.setProperty({id: element_id, property_name:"pos_index", new_value: new_pos, transaction: transaction})
-        })
+        await Element.setProperty({id: element_id, property_name:"pos_index", new_value: new_pos, connection: transaction})
         
     }
+
+
     
     /**
     * Repositions an element inside a section or moves it to another section 
@@ -325,13 +368,19 @@ export class Section{
     * @param [transaction] Transaction object for querying
     */
     static async moveElement({id, element_id, new_section_id, new_pos_index, transaction} : Params.Section.moveElement) : Promise<void>{
-        const elements = await Section.getElements({id: id, flat: false}) as Element[]
-        const element_to_move = await Element.findById({id: element_id})
+        return transaction
+        ? await Section.moveElement_private({id: id, element_id: element_id, new_section_id: new_section_id, new_pos_index: new_pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Section.moveElement_private({id: id, element_id: element_id, new_section_id: new_section_id, new_pos_index: new_pos_index, transaction: tx})})
+    }
+
+    private static async moveElement_private({id, element_id, new_section_id, new_pos_index, transaction} : Params.Section.moveElement) : Promise<void>{
+        const elements = await Section.getElements({id: id, flat: false, connection: transaction}) as Element[]
+        const element_to_move = await Element.findById({id: element_id, connection: transaction})
 
         if(element_to_move == null)
             throw new Exception("Could not find element with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
-        const exists = await Section.exists({id: new_section_id})
+        const exists = await Section.exists({id: new_section_id, connection: transaction})
         if(!exists)
             throw new Exception("Section to move element to does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
@@ -340,21 +389,17 @@ export class Section{
                 throw new Exception("Element to be moved is not part of provided section!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-
-            transaction = transaction ? transaction : tx
-            if(id === new_section_id){
-                if(!new_pos_index)
-                    throw new Exception("New position must be defined when moving inside a section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        if(id === new_section_id){
+            if(!new_pos_index)
+                throw new Exception("New position must be defined when moving inside a section!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
                 
-                await Section.repositionElement({id: id, element_id: element_id, new_pos: new_pos_index, transaction: transaction})
-                return
-            }
+            await Section.repositionElement({id: id, element_id: element_id, new_pos: new_pos_index, transaction: transaction})
+            return
+        }
                 
-            await Section.removeElement({id: id, element_id: element_id, transaction: transaction})
-            await Section.addElement({id: new_section_id, element: element_to_move, pos_index: new_pos_index, transaction: transaction})
-            
-        })
+        await Section.removeElement({id: id, element_id: element_id, transaction: transaction})
+        await Section.addElement({id: new_section_id, element: element_to_move, pos_index: new_pos_index, transaction: transaction})
+        
     }
 
     //#endregion
@@ -369,28 +414,34 @@ export class Section{
      * @param new_value New value for provided property
      * @param [transaction] Transaction object for querying
      */
-    static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
+
+    static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+        return connection
+        ? await Section.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: connection})
+        : await conn.tx(async (tx) => {return await Section.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: tx})})
+    }
+
+    static async setProperty_private({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const exists = await Entry.exists({id: id})
+        const exists = await Entry.exists({id: id, connection: connection})
         if(!exists)
             throw new Exception("Unable to find section to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
 
-            const queryObject = transaction ? transaction : conn
-
             const queryString = formatString(sectionQueries.setProperty as string, property_name)
             const queryData = [id,  new_value]
 
-            await queryObject.none(queryString, queryData)
+            await connection.none(queryString, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to change property of section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
 
+    
     get id(): number{
         return this._id
     }
