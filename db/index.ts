@@ -45,7 +45,7 @@ export const userQueries = {
     checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
     checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql"),
     exists: loadSQL("/User/exists.sql"),
-    setProperty: loadSQL("/Section/setProperty.sql")
+    setProperty: loadSQL("/User/setProperty.sql")
 }
 
 export const sectionQueries = {
