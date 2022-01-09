@@ -20,7 +20,7 @@ declare global {
             id: number,
             property_name: string,
             new_value: any,
-            connection?: ITask<any>
+            connection?: ITask<any> | IDatabase<any>
         }
 
         namespace Section{
@@ -584,6 +584,24 @@ declare global {
             export interface exists{
                 id: number,
                 connection?: ITask<any> | IDatabase<any>
+            }
+
+            /**
+             * @param id Unique identifier of user to be disabled
+             * @param [transaction] Transaction for querying
+             */
+            export interface disable{
+                id: number,
+                transaction?: ITask<any> | IDatabase<any>
+            }
+
+            /**
+             * @param id Unique identifier user to be enabled
+             * @param [transaction] Transaction for querying
+             */
+            export interface enable{
+                id: number,
+                transaction?: ITask<any> | IDatabase<any>
             }
         }
     }

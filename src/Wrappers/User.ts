@@ -4,7 +4,7 @@ import { connection as conn, connection, groupQueries, userQueries} from "../../
 import HttpStatus from 'http-status-codes'
 import { Group } from "./Group"
 
-const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enbaled", "profile_picture"]
+const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enabled", "profile_picture"]
 
 export class User{
 
@@ -46,6 +46,7 @@ export class User{
         this._root_id = root_id
         this._profile_picture = profile_picture
         this._username = username
+        this._enabled = enabled
     }
 
     /**
@@ -98,7 +99,7 @@ export class User{
             if(userData == null)
                 return null
             
-                     
+            console.log(new Date(userData.creation_timestamp))        
             return new User(id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname,
                 userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture)
         
@@ -177,8 +178,42 @@ export class User{
             throw new Exception("Failed to check for username existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
-    
 
+
+    
+    /**
+     * Disabled users account
+     * @param id Unique identifier of user to be disabled
+     * @param [transaction] Transaction for querying
+    */
+    static async disable({id, transaction} : Params.User.disable) : Promise<void>{
+        return transaction
+        ? await User.disable_private({id: id, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await User.disable_private({id: id, transaction: tx})})
+    }
+
+    static async disable_private({id, transaction} : Params.User.disable) : Promise<void>{
+        //TODO: What to do, if user is already logged in? Blacklist?
+        await User.setProperty({id: id, property_name:"enabled", new_value:false, connection: transaction})
+    }
+
+
+
+    /**
+     * Enbaled users account
+     * @param id Unique identifier user to be enabled
+     * @param [transaction] Transaction for querying
+    */
+    static async enable({id, transaction} : Params.User.disable) : Promise<void>{
+        return transaction
+        ? await User.enable_private({id: id, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await User.enable_private({id: id , transaction: tx})})
+    }
+
+    static async enable_private({id, transaction} : Params.User.disable) : Promise<void>{
+        //TODO: What to do, if user is disabled?
+        await User.setProperty({id: id, property_name:"enabled", new_value:true, connection: transaction})
+    }
     //#region Getters & Setters
 
     /**
@@ -205,7 +240,7 @@ export class User{
         try{
 
 
-            const queryString = formatString(groupQueries.setProperty as string, property_name)
+            const queryString = formatString(userQueries.setProperty as string, property_name)
             const queryData = [id,  new_value]
 
             await connection.none(queryString, queryData)
