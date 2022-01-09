@@ -7,7 +7,7 @@ import { configuration } from "../src/Utils/Configurator"
 import { Exception } from "../src/Utils/Exception"
 
 export let connection: IDatabase<any>
-export let {TransactionMode, isolationLevel} = pgPromise().txMode;
+let connected = false
 
 export async function connect(): Promise<void>{
 
@@ -24,18 +24,19 @@ export async function connect(): Promise<void>{
         database: configuration.postgresql.database,
         password: configuration.postgresql.password,
         keepAlive: configuration.postgresql.keepAlive,
-        max: 1000
+        max: 10
         
     });
-    
-    
-    
-
+  
+    connected = true
     connection = db
 }
 
 export async function disconnect(): Promise<void>{
-    connection.$pool.end()
+    if(connected){
+        connection.$pool.end()
+        connected = false
+    }
 }
 
 export const userQueries = {
@@ -43,7 +44,8 @@ export const userQueries = {
     findById: loadSQL("/User/findById.sql"),
     checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
     checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql"),
-    exists: loadSQL("/User/exists.sql")
+    exists: loadSQL("/User/exists.sql"),
+    setProperty: loadSQL("/Section/setProperty.sql")
 }
 
 export const sectionQueries = {
@@ -90,15 +92,10 @@ export const groupQueries = {
 }
 
 
-/**
- * Reads in an SQL file
- * @param file Relative path to SQL file
- * @returns 
- */
+
 function loadSQL(file: string): string {
     try{
-        const fullPath: string = joinPath(configuration.general.sqlPath, file)//joinPath(__dirname, file);
-    
+        const fullPath: string = joinPath(configuration.general.sqlPath, file)
         return pgMinify(readFileSync(fullPath,`utf8`),{compress: true, removeAll:true})
     }catch(err: unknown){
         throw new Exception("Failed to load sql file!", Types.ExceptionType.RuntimeError, undefined, err as Error)

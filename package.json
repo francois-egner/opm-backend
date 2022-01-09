@@ -6,7 +6,8 @@
   "scripts": {
     "test": "npx eslint test/* && mocha -r ts-node/register test/*.ts",
     "dev": "npx eslint src/* && CONFIG='./config_dev.json' npx ts-node src/index.ts",
-    "serve": "npx eslint src/* && CONFIG='./config.json' npx ts-node src/index.ts"
+    "serve": "npx eslint src/* && npm run dev test && npx tsc && CONFIG='./config.json' node dist/src/index.js",
+    "clean": "rm -Rf dist/ logs/"
   },
   "repository": {
     "type": "git",

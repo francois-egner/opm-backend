@@ -1,5 +1,5 @@
 
-import { connection as conn, groupQueries, sharedQueries, } from "../../db"
+import { connection as conn, groupQueries } from "../../db"
 import {  formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
@@ -20,7 +20,7 @@ export class Group{
     /**
      * Unique identifier of group
      */
-    private _id: number
+    private readonly _id: number
 
     /**
      * Name/title of group
@@ -76,57 +76,64 @@ export class Group{
      * @param [transaction] Transaction object for querying
      * @returns Newly created group
     */
-    static async create({name, icon, supergroup_id, pos_index, root=false, transaction} : Params.Group.create) : Promise<Group>{
+    static async create({name, icon, supergroup_id, pos_index, root, transaction} : Params.Group.create){
+        return transaction
+        ? await Group.create_private({name: name, icon: icon, supergroup_id: supergroup_id, pos_index: pos_index, root: root, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.create_private({name: name, icon: icon, supergroup_id: supergroup_id, pos_index: pos_index, root: root, transaction: tx})})
         
-        return await conn.tx(async (tx)=>{
+    }
 
-            transaction = transaction ? transaction : tx
+    private static async create_private({name, icon, supergroup_id, pos_index, root, transaction} : Params.Group.create){
+        if(!root){
+            //TODO: Parameter validation (owner_id)
+            const supergroup = await Group.findById({id: supergroup_id, connection: transaction})
 
-            if(!root){
-                //TODO: Parameter validation (owner_id)
-                const supergroup = await Group.findById({id: supergroup_id})
+            if(supergroup == null)
+                throw new Exception("Group to add subgroup to not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-                if(supergroup == null)
-                    throw new Exception("Group to add subgroup to not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-
-                const subgroups_count = supergroup!.subgroups.length
-
-                if(!pos_index)
-                    pos_index = subgroups_count
-
-                if(pos_index < 0 || pos_index > subgroups_count) 
-                    throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-
-                
-                for (const subgroup of supergroup!.subgroups as Group[]){
-                    if(subgroup.pos_index >= pos_index!)
-                    await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, transaction: transaction})   
-                }
-            }
+            const subgroups = await Group.getSubGroups({id: supergroup_id, flat: false, connection: transaction})
             
 
-            const queryData = [name, icon, root ? -1 : supergroup_id, root ? -1 : pos_index]
-            const groupData = await transaction.one(groupQueries.create, queryData)
+            if(pos_index === undefined){
+                pos_index = subgroups.length
+            }
+                
 
-            return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
-        })
+            if(pos_index < 0 || pos_index > subgroups.length) 
+                throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+
+            
+            for (const subgroup of subgroups as Group[]){
+                if(subgroup.pos_index >= pos_index!)
+                    await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, connection: transaction})   
+            }
+        }
+        
+
+        const queryData = [name, icon, root ? -1 : supergroup_id, root ? -1 : pos_index]
+        const groupData = await transaction.one(groupQueries.create, queryData)
+        return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
+    
     }
+
+   
 
     /**
      * Checks if a group with provided id does exist
      * @param id Unique identifier of group to check existence for
      * @returns True if group with provided id exists, else false
     */
-    static async exists({id} : Params.Group.exists) : Promise<boolean>{
-
+    static async exists({id, connection=conn} : Params.Group.exists) : Promise<boolean>{
         try{
             const queryData = [id]
-            const existsData = await conn.one(groupQueries.exists, queryData);
+            const existsData = await connection.one(groupQueries.exists, queryData);
             return existsData.exists;
         }catch(err: unknown){
             throw new Exception("Failed to check for existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+    
 
     /**
      * Fetches all groups (subgroups) associated with the group identified by provided id
@@ -134,27 +141,36 @@ export class Group{
      * @param [flat] If true, only group ids will be returned
      * @returns Array of group instances, ids of associated groups or null if no group was founds  
     */
-    static async getSubGroups({id, flat=true} : Params.Group.getSubGroups) : Promise<Group[]|number[] | null>{
-        const exists = await Group.exists({id: id})
-        if(!exists)
-            throw new Exception("Group to find subgroups from not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
-        
-        try{
-            const queryData = [id]
-            const groupsData = await conn.manyOrNone(groupQueries.getSubGroups, queryData)
-
-            if(groupsData == null)
-                return null
-            
-            const subGroups: Group[] | number[] = []
-            for(const groupData of groupsData)
-                subGroups.push(flat ? groupData.id : await Group.findById({id: groupData.id}))
-
-            return subGroups
-        }catch(err: unknown){
-            throw new Exception("Failed to find subgroups!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
+    static async getSubGroups({id, flat=true, full, connection} : Params.Group.getSubGroups) : Promise<Group[]|number[] | null>{
+        return connection
+        ? await this.getSubGroups_private({id: id, flat: flat, full:full, connection: connection})
+        : await conn.task(async (task)=>{return await Group.getSubGroups_private({id: id, flat: flat, full:full, connection: task})})
     }
+
+    private static async getSubGroups_private({id, flat, full, connection} : Params.Group.getSubGroups) : Promise<Group[]|number[] | null>{
+        const exists = await Group.exists({id: id, connection: connection})
+
+            if(!exists)
+                throw new Exception("Group to find subgroups from not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+            try{
+                const queryData = [id]
+                const groupsData = await connection.manyOrNone(groupQueries.getSubGroups, queryData)
+
+                if(groupsData == null)
+                    return null
+            
+                const subGroups: Group[] | number[] = []
+                for(const groupData of groupsData)
+                    subGroups.push(flat ? groupData.id : await Group.findById({id: groupData.id, full: full, connection: connection}))
+
+                return subGroups
+            }catch(err: unknown){
+                throw new Exception("Failed to find subgroups!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+            }
+    }
+
+
 
     /**
      * Fetches all entries associated with the group identified by provided provided id
@@ -162,49 +178,71 @@ export class Group{
      * @param [flat] If true, only ids of entries will be returned
      * @returns Array of entry instances, ids of associated entries or null if no entry was founds  
     */
-    static async getEntries({id, flat=true} : Params.Group.getEntries) : Promise<Entry[] | number[] | null>{
-        const exists = await Group.exists({id: id})
-        if(!exists)
+    static async getEntries({id, flat=true, connection} : Params.Group.getEntries) : Promise<Entry[] | number[] | null>{
+        
+        return connection
+        ? await Group.getEntries_private({id: id, flat: flat, connection: connection})
+        : await conn.task(async (task)=>{return await this.getEntries_private({id: id, flat: flat, connection: task})})
+        
+        
+    }
+
+    private static async getEntries_private({id, flat, connection} : Params.Group.getEntries) : Promise<Entry[] | number[] | null>{
+        const exists = await Group.exists({id: id, connection: connection})
+            if(!exists)
             throw new Exception("Group to find entries of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        try{
-            const queryData = [id]
-            const entriesData = await conn.manyOrNone(groupQueries.getEntries, queryData)
+            try{
+                const queryData = [id]
+                const entriesData = await connection.manyOrNone(groupQueries.getEntries, queryData)
 
-            if(entriesData == null)
-                return null
+                if(entriesData == null)
+                    return null
             
-            const entries: Entry[] | number[] = []
-            for(const entryData of entriesData)
-                entries.push(flat ? entryData.id : await Entry.findById({id: entryData.id}))
+                const entries: Entry[] | number[] = []
+                for(const entryData of entriesData)
+                    entries.push(flat ? entryData.id : await Entry.findById({id: entryData.id,connection: connection}))
 
-            return entries
-        }catch(err: unknown){
-            throw new Exception("Failed to find entries!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
+                return entries
+            }catch(err: unknown){
+                throw new Exception("Failed to find entries!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+            }
     }
+
+
 
     /**
      * Fetches group data of the group identified by provided id 
      * @param id Unique identifier of group to be found
      * @returns Group instance or null if no group with provided id was found
     */
-    static async findById({id} : Params.Group.findById) : Promise<Group|null>{
+    static async findById({id, full=false, connection} : Params.Group.findById) : Promise<Group|null>{
+        return connection
+        ? await Group.findById_private({id: id, full: full,connection: connection})
+        : await conn.task(async (task)=>{return await Group.findById_private({id: id, full: full, connection: task})})
+       
+    }
 
+    private static async findById_private({id, full, connection} : Params.Group.findById) : Promise<Group|null>{
         try{
             const queryData = [id]
-            const groupData= await conn.oneOrNone(groupQueries.findById, queryData)
+            const groupData= await connection.oneOrNone(groupQueries.findById, queryData)
             if(groupData == null)
                 return null
 
-            const subGroups = await Group.getSubGroups({id: id, flat: false})
-            const entries = await Group.getEntries({id: id, flat: false})
+                if(full){
+                    const subGroups = await Group.getSubGroups({id: id, flat: false, connection: connection})
+                    const entries = await Group.getEntries({id: id, flat: false, connection: connection})
+                    return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, subGroups, entries)
+                }
 
-            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, subGroups, entries)
+            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
         }catch(err: unknown){
             throw new Exception("Failed to fetch group data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+
 
     /**
      * Deletes a group and all of its associated groups and entries
@@ -212,31 +250,39 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async deleteById({id, transaction} : Params.Group.deleteById) : Promise<void>{
-        const group = await Group.findById({id: id})
+        return transaction
+        ? await Group.deleteById_private({id: id, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.deleteById({id: id, transaction: tx}) })
+    }
+
+    private static async deleteById_private({id, transaction} : Params.Group.deleteById) : Promise<void>{
+        const group = await Group.findById({id: id, connection: transaction})
         if(group == null)
             throw new Exception("Group to be deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
 
-            await conn.tx(async (tx)=>{
-                transaction = transaction ? transaction : tx
-
-                if(group.supergroup_id !== undefined)
-                    await Group.removeGroup({id: group.supergroup_id, subgroup_id: id, transaction: transaction})
+            if(group.supergroup_id !== -1)
+                await Group.removeGroup({id: group.supergroup_id, subgroup_id: id, transaction: transaction})
                 
-                const entries_id = await Group.getEntries({id: id, flat: true})
+            const entries_id = await Group.getEntries({id: id, flat: true, connection: transaction})
 
-                for(const entry_id of entries_id as number[])
-                    await Entry.deleteById({id: entry_id, transaction: transaction})
+            for(const entry_id of entries_id as number[])
+                await Entry.deleteById({id: entry_id, transaction: transaction})
 
-                const subgroups_id = await Group.getSubGroups({id: id}) as number[]
+            
+            const subgroups_id = await Group.getSubGroups({id: id, connection: transaction}) as number[]
+            
 
-                for(const subgroup_id of subgroups_id)
-                    await Group.deleteById({id: subgroup_id, transaction: transaction})
+            for(const subgroup_id of subgroups_id){
+                await Group.deleteById({id: subgroup_id, transaction: transaction})
+            }
+                    
                 
-                await transaction!.none(groupQueries.deleteById, [id])
+                
+            await transaction!.none(groupQueries.deleteById, [id])
 
-            })
+            
         }catch(err: unknown){
             throw new Exception("Failed to delete group!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -253,7 +299,13 @@ export class Group{
      * @param [transaction] Transaction object for querying
      */
     static async addEntry({id, entry, pos_index, transaction} : Params.Group.addEntry) : Promise<void>{
-        const group = await Group.findById({id: id})
+        return transaction
+        ? await Group.addEntry_private({id: id, entry: entry, pos_index: pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.addEntry_private({id: id, entry: entry, pos_index: pos_index, transaction: tx})})
+    }
+
+    private static async addEntry_private({id, entry, pos_index, transaction} : Params.Group.addEntry) : Promise<void>{
+        const group = await Group.findById({id: id, connection: transaction})
 
         if(group == null)
             throw new Exception("Group to add entry to not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -266,18 +318,18 @@ export class Group{
         if(pos_index < 0 || pos_index > entries_count) 
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
                 
-            for (const entry of group!.entries as Entry[]){
-                if(entry.pos_index >= pos_index!)
-                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index+1, transaction: transaction})   
-            }
+        for (const entry of group!.entries as Entry[]){
+            if(entry.pos_index >= pos_index!)
+                await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index+1, connection: transaction})   
+        }
             
-            await Entry.setProperty({id: entry.id, property_name: "group_id", new_value: id, transaction: transaction})
-            await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:pos_index!, transaction:transaction})
-        })
+        await Entry.setProperty({id: entry.id, property_name: "group_id", new_value: id, connection: transaction})
+        await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:pos_index!, connection:transaction})
+        
     }
+
+
 
     /**
      * Removes an entry from a group
@@ -287,8 +339,14 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async removeEntry({id, entry_id, del=false, transaction} : Params.Group.removeEntry) : Promise<void>{
-        const entries = await Group.getEntries({id: id, flat: false}) as Entry[]
-        const entry_to_remove = await Entry.findById({id: entry_id})
+        return transaction
+        ? await Group.removeEntry_private({id: id, entry_id: entry_id, del: del, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.removeEntry_private({id: id, entry_id: entry_id, del: del, transaction: tx})})
+    }
+
+    private static async removeEntry_private({id, entry_id, del, transaction} : Params.Group.removeEntry) : Promise<void>{
+        const entries = await Group.getEntries({id: id, flat: false, connection: transaction}) as Entry[]
+        const entry_to_remove = await Entry.findById({id: entry_id, connection: transaction})
 
         if(entry_to_remove == null)
             throw new Exception("Unable to find Entry with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -298,18 +356,17 @@ export class Group{
             throw new Exception("Could not find entry in given group!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
+        for(const entry of entries){
+            if(entry.pos_index > entry_to_remove.pos_index)
+                await Entry.setProperty({id: entry.id, property_name: "pos_index", new_value: entry.pos_index-1, connection: transaction})   
+        }
 
-            for(const entry of entries){
-                if(entry.pos_index > entry_to_remove.pos_index)
-                    await Entry.setProperty({id: entry.id, property_name: "pos_index", new_value: entry.pos_index-1, transaction: transaction})   
-            }
-
-            if(del)
-                await Entry.deleteById({id: entry_id, transaction: transaction})
-        }) 
+        if(del)
+            await Entry.deleteById({id: entry_id, transaction: transaction})
+         
     }
+
+
 
     /**
      * Repositions an element inside a group
@@ -319,8 +376,14 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async repositionEntry({id, entry_id, new_pos_index, transaction} : Params.Group.repositionEntry) : Promise<void>{
-        const entries = await Group.getEntries({id: id, flat: false}) as Entry[]
-        const entry_to_move = await Entry.findById({id: entry_id})
+        return transaction
+        ? await Group.repositionEntry_private({id: id, entry_id: entry_id, new_pos_index: new_pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.repositionEntry_private({id: id, entry_id: entry_id, new_pos_index: new_pos_index, transaction: tx})})
+    }
+
+    private static async repositionEntry_private({id, entry_id, new_pos_index, transaction} : Params.Group.repositionEntry) : Promise<void>{
+        const entries = await Group.getEntries({id: id, flat: false, connection: transaction}) as Entry[]
+        const entry_to_move = await Entry.findById({id: entry_id, connection: transaction})
 
         if(new_pos_index < 0 || new_pos_index >= entries.length)
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -334,12 +397,14 @@ export class Group{
 
             for (const entry of entries){
                 if((entry.pos_index <= new_pos_index) && (entry.pos_index > entry_to_move.pos_index)){
-                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index-1, transaction: transaction})
+                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index-1, connection: transaction})
                 }
             }
-            await Entry.setProperty({id: entry_id, property_name:"pos_index", new_value:new_pos_index, transaction: transaction})
+            await Entry.setProperty({id: entry_id, property_name:"pos_index", new_value:new_pos_index, connection: transaction})
         })
-    }
+    }    
+
+
     
     /**
      * Moves an entry from one group to another
@@ -350,13 +415,19 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async moveEntry({id, entry_id, new_group_id, new_pos_index, transaction} : Params.Group.moveEntry) : Promise<void>{
-        const entries = await Group.getEntries({id: id, flat: false}) as Entry[]
-        const entry_to_move = await Entry.findById({id: entry_id})
+        return transaction
+        ? await Group.moveEntry_private({id: id, entry_id: entry_id, new_group_id: new_group_id, new_pos_index: new_pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.moveEntry_private({id: id, entry_id: entry_id, new_group_id: new_group_id, new_pos_index: new_pos_index, transaction: tx})})
+    }
+
+    private static async moveEntry_private({id, entry_id, new_group_id, new_pos_index, transaction} : Params.Group.moveEntry) : Promise<void>{
+        const entries = await Group.getEntries({id: id, flat: false, connection: transaction}) as Entry[]
+        const entry_to_move = await Entry.findById({id: entry_id, connection: transaction})
 
         if(entry_to_move == null)
             throw new Exception("Could not find entry with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
-        const exists = await Entry.exists({id: new_group_id})
+        const exists = await Entry.exists({id: new_group_id, connection: transaction})
         if(!exists)
             throw new Exception("Group to move entry to does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
@@ -365,22 +436,18 @@ export class Group{
                 throw new Exception("Entry to be moved is not part of provided group!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-
-            transaction = transaction ? transaction : tx
-            if(id === new_group_id){
-                if(!new_pos_index)
-                    throw new Exception("New position must be defined when moving inside a group!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-                await Group.repositionEntry({id: id, entry_id: entry_id, new_pos_index, transaction: transaction})
-                return
-            }
+        if(id === new_group_id){
+            if(!new_pos_index)
+                throw new Exception("New position must be defined when moving inside a group!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
+            await Group.repositionEntry({id: id, entry_id: entry_id, new_pos_index, transaction: transaction})
+            return
+        }
                 
-            await Group.removeEntry({id: id, entry_id: entry_id, transaction: transaction})
-            await Group.addEntry({id: new_group_id, entry: entry_to_move, pos_index: new_pos_index, transaction: transaction})
+        await Group.removeEntry({id: id, entry_id: entry_id, transaction: transaction})
+        await Group.addEntry({id: new_group_id, entry: entry_to_move, pos_index: new_pos_index, transaction: transaction})
             
-        })
     }
-
     //#endregion
 
 
@@ -394,7 +461,13 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async addGroup({id, group, pos_index, transaction} : Params.Group.addGroup) : Promise<void>{
-        const supergroup = await Group.findById({id: id})
+        return transaction
+        ? await Group.addGroup_private({id: id, group: group, pos_index: pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.addGroup_private({id: id, group: group, pos_index: pos_index, transaction: tx})})
+    }
+
+    private static async addGroup_private({id, group, pos_index, transaction} : Params.Group.addGroup) : Promise<void>{
+        const supergroup = await Group.findById({id: id, connection: transaction})
 
         if(supergroup == null)
             throw new Exception("Group to add subgroup to not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -407,19 +480,19 @@ export class Group{
         if(pos_index < 0 || pos_index > subgroups_count) 
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
-                
-            for (const subgroup of supergroup!.subgroups as Group[]){
-                if(subgroup.pos_index >= pos_index!)
-                    await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, transaction: transaction})   
-            }
+        
+        for (const subgroup of supergroup!.subgroups as Group[]){
+            if(subgroup.pos_index >= pos_index!)
+                await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, connection: transaction})   
+        }
             
-            await Group.setProperty({id: group.id, property_name: "supergroup_id", new_value: id, transaction: transaction})
-            await Group.setProperty({id: group.id, property_name:"pos_index", new_value:pos_index!, transaction:transaction})
-        })
+        await Group.setProperty({id: group.id, property_name: "supergroup_id", new_value: id, connection: transaction})
+        await Group.setProperty({id: group.id, property_name:"pos_index", new_value:pos_index!, connection:transaction})
+        
     }
     
+
+
     /**
      * Removes a subgroup from its supergroup
      * @param id Unique identifier of group a subgroup should be removed from
@@ -428,8 +501,14 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async removeGroup({id, subgroup_id, del=false, transaction} : Params.Group.removeGroup) : Promise<void>{
-        const subgroups = await Group.getSubGroups({id: id, flat: false}) as Group[]
-        const group_to_remove = await Group.findById({id: subgroup_id})
+       return transaction
+       ? await Group.removeGroup_private({id: id, subgroup_id: subgroup_id, del: del, transaction: transaction})
+       : await conn.tx(async (tx)=>{return await Group.removeGroup_private({id: id, subgroup_id: subgroup_id, del: del, transaction: tx})})
+    }
+
+    private static async removeGroup_private({id, subgroup_id, del, transaction} : Params.Group.removeGroup) : Promise<void>{
+        const subgroups = await Group.getSubGroups({id: id, flat: false, connection: transaction}) as Group[]
+        const group_to_remove = await Group.findById({id: subgroup_id, connection: transaction})
 
         if(group_to_remove == null)
             throw new Exception("Unable to find subgroup with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -439,19 +518,19 @@ export class Group{
             throw new Exception("Could not find subgroup in given group!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
+        
+        for(const subgroup of subgroups){
+            if(subgroup.pos_index > group_to_remove.pos_index)
+                await Group.setProperty({id: subgroup.id, property_name: "pos_index", new_value: subgroup.pos_index-1, connection: transaction})   
+        }
 
-            for(const subgroup of subgroups){
-                if(subgroup.pos_index > group_to_remove.pos_index)
-                    await Group.setProperty({id: subgroup.id, property_name: "pos_index", new_value: subgroup.pos_index-1, transaction: transaction})   
-            }
-
-            if(del)
-                await Group.deleteById({id: subgroup_id, transaction: transaction})
-            }) 
+        if(del)
+            await Group.deleteById({id: subgroup_id, transaction: transaction})
+             
     }
     
+
+
     /**
      * Repositions a subgroup inside its supergroup
      * @param id Unique identifier of group a subgroup should be reposition of
@@ -460,8 +539,14 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async repositionGroup({id, subgroup_id, new_pos_index, transaction} : Params.Group.repositionGroup) : Promise<void>{
-        const subgroups = await Group.getSubGroups({id: id, flat: false}) as Group[]
-        const group_to_move = await Group.findById({id: subgroup_id})
+        return transaction
+        ? await Group.repositionGroup_private({id: id, subgroup_id: subgroup_id, new_pos_index: new_pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.repositionGroup_private({id: id, subgroup_id: subgroup_id, new_pos_index: new_pos_index, transaction: tx})})
+    }
+
+    private static async repositionGroup_private({id, subgroup_id, new_pos_index, transaction} : Params.Group.repositionGroup) : Promise<void>{
+        const subgroups = await Group.getSubGroups({id: id, flat: false, connection: transaction}) as Group[]
+        const group_to_move = await Group.findById({id: subgroup_id, connection: transaction})
 
         if(new_pos_index < 0 || new_pos_index >= subgroups.length)
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -470,17 +555,17 @@ export class Group{
         if(group_to_move == null)
             throw new Exception("Group to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
-
-            for (const subgroup of subgroups){
-                if((subgroup.pos_index <= new_pos_index) && (subgroup.pos_index > group_to_move.pos_index)){
-                    await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index-1, transaction: transaction})
-                }
+        
+        for (const subgroup of subgroups){
+            if((subgroup.pos_index <= new_pos_index) && (subgroup.pos_index > group_to_move.pos_index)){
+                await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index-1, connection: transaction})
             }
-            await Group.setProperty({id: subgroup_id, property_name:"pos_index", new_value:new_pos_index, transaction: transaction})
-        })
+        }
+        await Group.setProperty({id: subgroup_id, property_name:"pos_index", new_value:new_pos_index, connection: transaction})
+        
     }
+
+
 
     /**
      * Moves a subgroup from one supergroup to another       
@@ -491,13 +576,19 @@ export class Group{
      * @param [transaction] Transaction object for querying
     */
     static async moveGroup({id, subgroup_id, new_supergroup_id, new_pos_index, transaction} : Params.Group.moveGroup) : Promise<void>{
-        const subgroups = await Group.getSubGroups({id: id, flat: false}) as Group[]
-        const subgroup_to_move = await Group.findById({id: subgroup_id})
+        return transaction
+        ? await Group.moveGroup_private({id: id, subgroup_id: subgroup_id, new_supergroup_id: new_supergroup_id, new_pos_index: new_pos_index, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await Group.moveGroup_private({id: id, subgroup_id: subgroup_id, new_supergroup_id: new_supergroup_id, new_pos_index: new_pos_index, transaction: tx})})
+    }
+
+    private static async moveGroup_private({id, subgroup_id, new_supergroup_id, new_pos_index, transaction} : Params.Group.moveGroup) : Promise<void>{
+        const subgroups = await Group.getSubGroups({id: id, flat: false, connection: transaction}) as Group[]
+        const subgroup_to_move = await Group.findById({id: subgroup_id, connection: transaction})
 
         if(subgroup_to_move == null)
             throw new Exception("Could not find subgroup with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
-        const exists = await Group.exists({id: new_supergroup_id})
+        const exists = await Group.exists({id: new_supergroup_id, connection: transaction})
         if(!exists)
             throw new Exception("Supergroup to move subgroup to does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
@@ -506,21 +597,18 @@ export class Group{
                 throw new Exception("Group to be moved is not part of provided group!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
-        await conn.tx(async (tx)=>{
-
-            transaction = transaction ? transaction : tx
-            if(id === new_supergroup_id){
-                if(!new_pos_index)
-                    throw new Exception("New position must be defined when moving inside a group!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-                await Group.repositionGroup({id: id, subgroup_id: subgroup_id, new_pos_index, transaction: transaction})
-                return
-            }
+        if(id === new_supergroup_id){
+            if(!new_pos_index)
+                throw new Exception("New position must be defined when moving inside a group!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+            await Group.repositionGroup({id: id, subgroup_id: subgroup_id, new_pos_index, transaction: transaction})
+            return
+        }
                 
-            await Group.removeGroup({id: id, subgroup_id: subgroup_id, transaction: transaction})
-            await Group.addGroup({id: new_supergroup_id, group: subgroup_to_move, pos_index: new_pos_index, transaction: transaction})
-            
-        })
+        await Group.removeGroup({id: id, subgroup_id: subgroup_id, transaction: transaction})
+        await Group.addGroup({id: new_supergroup_id, group: subgroup_to_move, pos_index: new_pos_index, transaction: transaction})
     }
+
+
 
     /**
      * Fetches the id or full objecct of user that owns the group
@@ -528,20 +616,26 @@ export class Group{
      * @param [flat] If true, only id will be returned
      * @returns User object or user id
     */
-    static async getOwner({id, flat=true} : Params.Group.getOwner) : Promise<User|number>{
-        const group = await Group.findById({id: id})
+    static async getOwner({id, flat=true, connection} : Params.Group.getOwner) : Promise<User|number>{
+        return connection
+        ? await Group.getOwner_private({id: id, flat: flat, connection: connection})
+        : await conn.task(async (task)=>{return await Group.getOwner_private({id: id, flat: flat, connection: task})})
+    }
+
+    private static async getOwner_private({id, flat=true, connection} : Params.Group.getOwner) : Promise<User|number>{
+        const group = await Group.findById({id: id, connection: connection})
 
         if(group == null)
             throw new Exception("No group with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        let supergroup = await Group.findById({id: group.supergroup_id})
+        let supergroup = await Group.findById({id: group.supergroup_id, connection: connection})
 
         while(supergroup.supergroup_id !== -1){
-            supergroup = await Group.findById({id: supergroup.supergroup_id})
+            supergroup = await Group.findById({id: supergroup.supergroup_id, connection: connection})
         }
 
-        const user_id = (await conn.one(groupQueries.getOwner, [supergroup.id])).id
-        return flat ? user_id : await User.findById({id: user_id})
+        const user_id = (await connection.one(groupQueries.getOwner, [supergroup.id])).id
+        return flat ? user_id : await User.findById({id: user_id, connection: connection})
     }
 
     //#endregion
@@ -556,26 +650,32 @@ export class Group{
      * @param new_value New value for provided property
      * @param [transaction] Transaction object for querying
      */
-    static async setProperty({id, property_name, new_value, transaction} : Params.setProperty) : Promise<void>{
-        
+    static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+        return connection
+        ? await Group.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: connection})
+        : await conn.task(async (task)=>{return await Group.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: task})})
+    }
+
+    private static async setProperty_private({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const exists = await Group.exists({id: id})
+        const exists = await Group.exists({id: id, connection: connection})
         if(!exists)
             throw new Exception("Group to change property of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
         try{
-            const queryObject = transaction ? transaction : conn
             const queryData = [id, new_value]
             const queryString = formatString(groupQueries.setProperty as string, property_name)
 
-            await queryObject.none(queryString, queryData)
+            await connection.none(queryString, queryData)
 
         }catch(err: unknown){
             throw new Exception("Failed to change property of group!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
+
+
 
     get id(): number{
         return this._id

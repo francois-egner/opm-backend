@@ -1,9 +1,10 @@
 import { Exception } from "../Utils/Exception"
-import {  checkForUndefined, isValidEmail } from "../Utils/Shared"
-import { connection as conn, userQueries} from "../../db"
+import {  checkForUndefined, formatString, isValidEmail } from "../Utils/Shared"
+import { connection as conn, connection, groupQueries, userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
 import { Group } from "./Group"
 
+const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enbaled", "profile_picture"]
 
 export class User{
 
@@ -62,31 +63,38 @@ export class User{
      * @returns Instance of newly created user
      */
     static async create({email, username, password_hash, role, forename, surname, display_name, enabled=false, profile_picture, transaction} : Params.User.create): Promise<User>{
-                
-        try{              
-            return await conn.tx(async (tx)=>{
-                transaction = transaction ? transaction : tx
+        
+        return transaction
+        ? await User.create_private({email: email, username: username, password_hash: password_hash, role: role, forename: forename, 
+                                    surname: surname, display_name: display_name, enabled: enabled, profile_picture: profile_picture, transaction: transaction})
+        : await conn.tx(async (tx)=>{return await User.create_private({email: email, username: username, password_hash: password_hash, role: role, forename: forename, 
+                                    surname: surname, display_name: display_name, enabled: enabled, profile_picture: profile_picture, transaction: tx})})
+    }
 
-                const root_group = await Group.create({name: `${username}_root`, root: true, transaction: transaction})
+    private static async create_private({email, username, password_hash, role, forename, surname, display_name, enabled=false, profile_picture, transaction} : Params.User.create): Promise<User>{
+        try{
+            const root_group = await Group.create({name: `${username}_root`, root: true, transaction: transaction})
                 
-                const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now() ]
+            const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now() ]
 
-                const userData = await transaction.one(userQueries.create, queryData)
-                return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture)
-            })
+            const userData = await transaction.one(userQueries.create, queryData)
+            return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture)
+            
         }catch(err: unknown){
             throw new Exception("Failed to create new user", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }    
+        }  
     }
+
+
 
     /**
      * Fetches user data
      * @param id Unique identifier of user to bef ound 
      * @returns User or null, if no user with provided id was found
      */
-    static async findById({id} : Params.User.findById) : Promise<User|null>{
+    static async findById({id, connection=conn} : Params.User.findById) : Promise<User|null>{
         try{
-            const userData = await conn.oneOrNone(userQueries.findById, [id])
+            const userData = await connection.oneOrNone(userQueries.findById, [id])
             if(userData == null)
                 return null
             
@@ -100,55 +108,70 @@ export class User{
     }
 
     
+
+    /**
+     * Deletes a user with provided id
+     * @param id Unique identifier of user to be deleted
+     * @param [transaction] Transaction object for querying
+     */
     static async deleteById({id, transaction} : Params.User.deleteById) : Promise<void>{
-        const user = await User.findById({id: id})
+       return await transaction 
+       ? await User.deleteById_user({id: id, transaction: transaction})
+       : conn.tx(async (tx)=>{ return await User.deleteById_user({id: id, transaction: tx})})
+
+    }
+
+    private static async deleteById_user({id, transaction} : Params.User.deleteById) : Promise<void>{
+        const user = await User.findById({id: id, connection: transaction})
         if(user == null)
             throw new Exception("User to be deleted not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        try{
-            await conn.tx(async (tx)=>{
-                transaction = transaction ? transaction : tx
-                
-                await Group.deleteById({id: user.root_id, transaction: transaction})
-                
-                await transaction.none('DELETE FROM "User".users WHERE id=$1;', [id])
-            })
+        try{    
+            await Group.deleteById({id: user.root_id, transaction: transaction})
+            await transaction.none('DELETE FROM "User".users WHERE id=$1;', [id])
+            
         }catch(err: unknown){
             throw new Exception("Failed to delete user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
-    static async exists({id} : Params.User.exists) : Promise<boolean>{
+
+
+    static async exists({id, connection=conn} : Params.User.exists) : Promise<boolean>{
         try{
-            const existsData = await conn.oneOrNone(userQueries.exists, [id])
+            const existsData = await connection.oneOrNone(userQueries.exists, [id])
             return existsData.exists
         }catch(err: unknown){
             throw new Exception("Failed to check user existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
+
+
     /**
      * Checks if a user with the provided email address exists
      * @param email E-mail address to be checked for
     */
-    static async checkEmailExistence({email} : Params.User.checkEmailExistence) : Promise<boolean>{
+    static async checkEmailExistence({email, connection=conn} : Params.User.checkEmailExistence) : Promise<boolean>{
         try{
             const queryData = [email]
-            const existsData = await conn.one(userQueries.checkEmailExistence, queryData)
+            const existsData = await connection.one(userQueries.checkEmailExistence, queryData)
             return existsData.exists
         }catch(err: unknown){
             throw new Exception("Failed to check for email existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
+
+
     /**
      * Check if a user with the provided username exists
      * @param username Username to be checked for
     */
-    static async checkUsernameExistence({username} : Params.User.checkUsernameExistence) : Promise<boolean>{
+    static async checkUsernameExistence({username, connection= conn} : Params.User.checkUsernameExistence) : Promise<boolean>{
         try{
             const queryData = [username]
-            const existsData = await conn.one(userQueries.checkUsernamExistence, queryData)
+            const existsData = await connection.one(userQueries.checkUsernamExistence, queryData)
             return existsData.exists
         }catch(err: unknown){
             throw new Exception("Failed to check for username existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -157,6 +180,42 @@ export class User{
     
 
     //#region Getters & Setters
+
+    /**
+     * Sets a new value for a object specific property.
+     * @param id Unique identifier of entry to change a property from
+     * @param property_name Name of property to change value of
+     * @param new_value New value for provided property
+     * @param [transaction] Transaction object for querying
+     */
+     static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+        return connection
+        ? await User.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: connection})
+        : await conn.tx(async (tx)=>{return await User.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: tx})})
+     }
+
+    private static async setProperty_private({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+        if(!propertyNames.includes(property_name))
+            throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
+        const exists = await User.exists({id: id, connection: connection})
+        if(!exists)
+            throw new Exception("Unable to find entry to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        try{
+
+
+            const queryString = formatString(groupQueries.setProperty as string, property_name)
+            const queryData = [id,  new_value]
+
+            await connection.none(queryString, queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change property of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+
+
     get id(): number{
         return this._id
     }
