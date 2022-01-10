@@ -66,7 +66,7 @@ export class User{
      * @param transaction Transaction object for querying 
      * @returns Instance of newly created user
      */
-    static async create({email, username, password_hash, role, forename, surname, display_name, enabled=false, profile_picture, transaction} : Params.User.create): Promise<User>{
+    static async create({email, username, password_hash, role=Types.User.Role.normal, forename, surname, display_name, enabled=true, profile_picture, transaction} : Params.User.create): Promise<User>{
         
         return transaction
         ? await User.create_private({email: email, username: username, password_hash: password_hash, role: role, forename: forename, 
@@ -76,6 +76,9 @@ export class User{
     }
 
     private static async create_private({email, username, password_hash, role, forename, surname, display_name, enabled=false, profile_picture, transaction} : Params.User.create): Promise<User>{
+        if(await User.checkEmailExistence({email: email, connection: transaction}) || await User.checkUsernameExistence({username: username, connection: transaction}))
+            throw new Exception("User with provided email or username already exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+
         try{
             const root_group = await Group.create({name: `${username}_root`, root: true, transaction: transaction})
                 
@@ -125,11 +128,11 @@ export class User{
         return await User.getProperty({id: id, property_name: "role"})
     }
 
-    static async getProperty({id, property_name} : Params.User.getProperty) : Promise<any>{
+    static async getProperty({id, property_name, connection=conn} : Params.User.getProperty) : Promise<any>{
         try{
             const queryString = formatString(userQueries.getProperty, property_name)
-            const propertyData = await conn.one(queryString, [id])
-            console.log(propertyData[property_name])
+            const propertyData = await connection.one(queryString, [id])
+            return propertyData[property_name]
         }catch(err: unknown){
             throw new Exception("Failed to fetch property!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -184,6 +187,7 @@ export class User{
         try{
             const queryData = [email]
             const existsData = await connection.one(userQueries.checkEmailExistence, queryData)
+            
             return existsData.exists
         }catch(err: unknown){
             throw new Exception("Failed to check for email existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -200,6 +204,7 @@ export class User{
         try{
             const queryData = [username]
             const existsData = await connection.one(userQueries.checkUsernamExistence, queryData)
+            
             return existsData.exists
         }catch(err: unknown){
             throw new Exception("Failed to check for username existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)

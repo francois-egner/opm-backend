@@ -25,7 +25,7 @@ export const formatString = (formatString: string, ...parameters:any): string =>
 export const checkForUndefined = (ob: any): boolean =>{
     const keys = Object.keys(ob)
     for(const key of keys){
-        if(typeof ob[key] === "undefined") return false
+        if(ob[key] === undefined) return false
     }
     return true;
 }

@@ -3,11 +3,16 @@ import { sign, verify } from 'jsonwebtoken';
 import { connection } from "../../db";
 import { User } from "../Wrappers/User";
 import { configuration } from "../Utils/Configurator"
-import HttpStatus from 'http-status-codes'
-import jwt from "express-jwt"  
+import HttpStatus from 'http-status-codes'  
+import { checkForUndefined } from "../Utils/Shared";
+import { Exception } from "../Utils/Exception";
 
 
 export const authRouter = express.Router()
+
+const privMatrix = {
+    "/group/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PUT","GET"]}
+}
 
 export async function auth(request: express.Request, response: express.Response, next) {
     const bearer_header = request.headers.authorization
@@ -18,7 +23,7 @@ export async function auth(request: express.Request, response: express.Response,
     
     const jwt = bearer_header.substring(7, bearer_header.length)
     
-    
+    //Check for valid jwt
     try{
         const decoded_jwt:any = verify(jwt, configuration.express.jwt_secret)
         request.auth = {id: decoded_jwt.id}
@@ -26,12 +31,19 @@ export async function auth(request: express.Request, response: express.Response,
         return response.status(HttpStatus.UNAUTHORIZED).send()
     }
 
-    const role = await User.getRole({id: request.auth.id})
+    //Check if user is enbaled
+    const user_enabled = await User.getProperty({id: request.auth.id, property_name:"enabled"})
+    if(!user_enabled)
+        return response.status(HttpStatus.UNAUTHORIZED).send()
 
-    //TODO: Role permission matrix
+    //Check if role is allowed to use used route
+    const role = await User.getRole({id: request.auth.id})
+    if(!privMatrix[request.path].roles.includes(role))
+        return response.status(HttpStatus.UNAUTHORIZED).send()
+    
     
     next();
-  }
+}
 
 authRouter.put('/login', async (req, res)=>{
     try{
@@ -58,10 +70,32 @@ authRouter.put('/login', async (req, res)=>{
     
 })
 
-authRouter.get("/", (req, res)=>{
+authRouter.put('/register', async(req, res)=>{
+    
+    try{
+        const new_user = await connection.tx(async (tx)=>{
+            const userData: Params.User.create = {
+                email: req.body.email,
+                password_hash: req.body.password_hash,
+                username: req.body.username,
+                forename: req.body.forename,
+                surname: req.body.surname,
+                display_name: req.body.display_name,
+                transaction: tx
+            }
+        
+            if(!checkForUndefined(userData))
+                return res.status(HttpStatus.BAD_REQUEST).send()
+            
+            return await User.create(userData)
+        })
 
-    console.log(req.auth)
-    res.send("Erfolgreich!")
+        res.json(new_user).status(HttpStatus.CREATED)
+    }catch(err: unknown){
+        if (err instanceof Exception)
+            return res.status((err as Exception).responseStatus).send()
+    }
+    
 })
 
 

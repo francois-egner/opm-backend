@@ -565,7 +565,8 @@ declare global {
 
             interface getProperty{
                 id: number,
-                property_name: string
+                property_name: string,
+                connection?: ITask<any> | IDatabase<any>
             }
 
             /**
