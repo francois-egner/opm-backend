@@ -1,5 +1,5 @@
 import { Exception } from "../Utils/Exception"
-import {  checkForUndefined, formatString, isValidEmail } from "../Utils/Shared"
+import {  checkForUndefined, formatString, isValidB64, isValidEmail } from "../Utils/Shared"
 import { connection as conn, connection, groupQueries, userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
 import { Group } from "./Group"
@@ -32,9 +32,11 @@ export class User{
 
     private _profile_picture: string
 
+    private readonly _last_login: Date
+
 
     constructor(id: number, email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled: boolean,
-        creation_date: Date, root_id: number, profile_picture: string){
+        creation_date: Date, root_id: number, profile_picture: string, last_login: Date){
         this._id = id
         this._email = email
         this._password_hash = password_hash
@@ -47,6 +49,7 @@ export class User{
         this._profile_picture = profile_picture
         this._username = username
         this._enabled = enabled
+        this._last_login = last_login
     }
 
     /**
@@ -79,7 +82,8 @@ export class User{
             const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now() ]
 
             const userData = await transaction.one(userQueries.create, queryData)
-            return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture)
+            return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), 
+                            userData.root_id, userData.profile_picture, new Date(userData.last_login))
             
         }catch(err: unknown){
             throw new Exception("Failed to create new user", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -99,12 +103,35 @@ export class User{
             if(userData == null)
                 return null
             
-            console.log(new Date(userData.creation_timestamp))        
+                  
             return new User(id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname,
-                userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture)
+                userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture, new Date(userData.last_login))
         
         }catch(err: unknown){
             throw new Exception("Failed to find user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    static async findByEmail({email, password_hash, connection} :  Params.User.findByEmail) : Promise<User|null>{
+        const user_id = await connection.oneOrNone(userQueries.findByEmail, [email, password_hash])
+        
+        if(user_id == null)
+            return null
+
+        return await User.findById({id: user_id.id, connection: connection})
+    }
+
+    static async getRole({id}: Params.User.getRole) : Promise<Types.User.Role>{
+        return await User.getProperty({id: id, property_name: "role"})
+    }
+
+    static async getProperty({id, property_name} : Params.User.getProperty) : Promise<any>{
+        try{
+            const queryString = formatString(userQueries.getProperty, property_name)
+            const propertyData = await conn.one(queryString, [id])
+            console.log(propertyData[property_name])
+        }catch(err: unknown){
+            throw new Exception("Failed to fetch property!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
@@ -180,7 +207,7 @@ export class User{
     }
 
 
-    
+
     /**
      * Disabled users account
      * @param id Unique identifier of user to be disabled
@@ -193,7 +220,6 @@ export class User{
     }
 
     static async disable_private({id, transaction} : Params.User.disable) : Promise<void>{
-        //TODO: What to do, if user is already logged in? Blacklist?
         await User.setProperty({id: id, property_name:"enabled", new_value:false, connection: transaction})
     }
 
@@ -211,9 +237,47 @@ export class User{
     }
 
     static async enable_private({id, transaction} : Params.User.disable) : Promise<void>{
-        //TODO: What to do, if user is disabled?
         await User.setProperty({id: id, property_name:"enabled", new_value:true, connection: transaction})
     }
+
+
+
+    static async changeProfilePicture({id, new_profile_picture, transaction}: Params.User.changeProfilePicture) : Promise<void>{
+        return transaction
+        ? await User.changeProfilePicture_private({id: id, new_profile_picture: new_profile_picture, transaction: transaction})
+        : await conn.task(async (task)=>{return await User.changeProfilePicture_private({id: id, new_profile_picture: new_profile_picture, transaction: task})})
+    }
+
+    static async changeProfilePicture_private({id, new_profile_picture, transaction}: Params.User.changeProfilePicture) : Promise<void>{
+        const exists = await User.exists({id: id})
+        
+        if(!exists)
+            throw new Exception("User to change profile picture of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        if(!isValidB64(new_profile_picture))
+            throw new Exception("Profile picture not a valid Base64 string!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
+        
+        try{
+            const queryData = [id, new_profile_picture]
+            await transaction.none('UPDATE "User".users SET profile_picture=$2 WHERE id=$1;', queryData)
+        }catch(err: unknown){
+            throw new Exception("Failed to change profile picture!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    static async login({id, connection} : Params.User.login) : Promise<void>{
+        const user = await User.findById({id: id, connection})
+
+        if(user == null)
+            throw new Exception("Failed to find user to be logged in!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        if (!user.enabled)
+            throw new Exception("User not permitted to login!", Types.ExceptionType.ParameterError, HttpStatus.FORBIDDEN)
+        
+        //Generate JWT
+        
+    }
+
     //#region Getters & Setters
 
     /**
@@ -223,11 +287,11 @@ export class User{
      * @param new_value New value for provided property
      * @param [transaction] Transaction object for querying
      */
-     static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+    static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
         return connection
         ? await User.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: connection})
         : await conn.tx(async (tx)=>{return await User.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: tx})})
-     }
+    }
 
     private static async setProperty_private({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
@@ -297,6 +361,10 @@ export class User{
 
     get username(): string{
         return this._username
+    }
+
+    get last_login(): Date{
+        return this._last_login
     }
     //#endregion
 }

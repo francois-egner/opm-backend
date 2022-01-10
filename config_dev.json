@@ -8,8 +8,10 @@
         "keepAlive": true
     },
     "express":{
-      "interface": "0.0.0.0",
-      "port": 3000
+      "interface": "localhost",
+      "port": 3000,
+      "jwt_secret": "Test",
+      "jwt_expiration_time": 10
     },
     "general":{
         "sqlPath": "/Users/crypt0n/Documents/Repositories/REST-API/db"

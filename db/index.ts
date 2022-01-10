@@ -42,10 +42,13 @@ export async function disconnect(): Promise<void>{
 export const userQueries = {
     create: loadSQL("/User/create.sql"),
     findById: loadSQL("/User/findById.sql"),
+    findByEmail: loadSQL("/User/findByEmail.sql"),
     checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
     checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql"),
     exists: loadSQL("/User/exists.sql"),
-    setProperty: loadSQL("/User/setProperty.sql")
+    setProperty: loadSQL("/User/setProperty.sql"),
+    getProperty: loadSQL("/User/getProperty.sql")
+
 }
 
 export const sectionQueries = {

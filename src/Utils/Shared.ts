@@ -29,15 +29,3 @@ export const checkForUndefined = (ob: any): boolean =>{
     }
     return true;
 }
-
- /**
-     * Defined types of Exception
-     */
-  export const enum ExceptionType{
-    SQLError = "SQL",
-    DataError = "Data",
-    NetworkError = "Network",
-    RuntimeError = "Runtime",
-    Unknown = "Unknown",
-    ParameterError = "Parameter"
-  }

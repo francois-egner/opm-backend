@@ -550,6 +550,24 @@ declare global {
                 connection?: ITask<any> | IDatabase<any>
             }
 
+            interface findByEmail{
+                email: string,
+                password_hash: string,
+                connection?: ITask<any>
+            }
+
+            /**
+             * @param id Unique identifier of user to get role from
+             */
+            interface getRole{
+                id: number
+            }
+
+            interface getProperty{
+                id: number,
+                property_name: string
+            }
+
             /**
              * @param email E-mail address to be checked for
              * @param [connection] Task or Transaction for querying
@@ -602,6 +620,25 @@ declare global {
             export interface enable{
                 id: number,
                 transaction?: ITask<any> | IDatabase<any>
+            }
+
+            /**
+             * @param id Unique identifier of User to set new profile picture for
+             * @param new_profile_picture Base64 encoded picture
+             * @param [transaction] Transaction for querying 
+             */
+            export interface changeProfilePicture{
+                id: number,
+                new_profile_picture: string,
+                transaction?: ITask<any> | IDatabase<any>
+            }
+
+            /**
+             * @param id Unique identifier of user to be logged in
+             */
+            export interface login{
+                id: number,
+                connection?: ITask<any>
             }
         }
     }
@@ -668,11 +705,21 @@ declare global {
             },
             express:{
               interface: string,
-              port: number
+              port: number,
+              jwt_secret: string
+              jwt_expiration_time: number
             },
             general:{
               sqlPath: string
             }
+        }
+    }
+
+    namespace Express {
+        interface Request {
+          auth?: {
+              id: number
+          }
         }
     }
 }
