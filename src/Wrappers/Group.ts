@@ -392,16 +392,21 @@ export class Group{
         if(entry_to_move == null)
             throw new Exception("Entry to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        await conn.tx(async (tx)=>{
-            transaction = transaction ? transaction : tx
+        
 
-            for (const entry of entries){
-                if((entry.pos_index <= new_pos_index) && (entry.pos_index > entry_to_move.pos_index)){
-                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index-1, connection: transaction})
-                }
+        for (const entry of entries){
+            if(entry_to_move.pos_index < new_pos_index){
+                if(entry.pos_index > entry_to_move.pos_index && entry.pos_index <= new_pos_index)
+                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index-1, connection: transaction})    
+            }else{
+                
+                if(entry.pos_index >= new_pos_index && entry.pos_index < entry_to_move.pos_index)
+                    await Entry.setProperty({id: entry.id, property_name:"pos_index", new_value:entry.pos_index+1, connection: transaction})     
             }
-            await Entry.setProperty({id: entry_id, property_name:"pos_index", new_value:new_pos_index, connection: transaction})
-        })
+        }
+
+        await Entry.setProperty({id: entry_id, property_name:"pos_index", new_value:new_pos_index, connection: transaction})
+        
     }    
 
 
@@ -545,22 +550,26 @@ export class Group{
     }
 
     private static async repositionGroup_private({id, subgroup_id, new_pos_index, transaction} : Params.Group.repositionGroup) : Promise<void>{
-        const subgroups = await Group.getSubGroups({id: id, flat: false, connection: transaction}) as Group[]
         const group_to_move = await Group.findById({id: subgroup_id, connection: transaction})
-
+        if(group_to_move == null)
+            throw new Exception("Group to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        const subgroups = await Group.getSubGroups({id: id, flat: false, connection: transaction}) as Group[]
+        
         if(new_pos_index < 0 || new_pos_index >= subgroups.length)
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         
-        if(group_to_move == null)
-            throw new Exception("Group to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
-        
-        
         for (const subgroup of subgroups){
-            if((subgroup.pos_index <= new_pos_index) && (subgroup.pos_index > group_to_move.pos_index)){
-                await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index-1, connection: transaction})
+            if(group_to_move.pos_index < new_pos_index){
+                if(subgroup.pos_index > group_to_move.pos_index && subgroup.pos_index <= new_pos_index)
+                    await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index-1, connection: transaction})    
+            }else{
+                if(subgroup.pos_index >= new_pos_index && subgroup.pos_index < group_to_move.pos_index)
+                    await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, connection: transaction})     
             }
         }
+        
         await Group.setProperty({id: subgroup_id, property_name:"pos_index", new_value:new_pos_index, connection: transaction})
         
     }
@@ -675,6 +684,15 @@ export class Group{
         }
     }
 
+    static async getProperty({id, property_name, connection=conn} : Params.getProperty) : Promise<any>{
+        try{
+            const queryString = formatString(groupQueries.getProperty, property_name)
+            const propertyData = await connection.one(queryString, [id])
+            return propertyData[property_name]
+        }catch(err: unknown){
+            throw new Exception("Failed to fetch property!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
 
 
     get id(): number{

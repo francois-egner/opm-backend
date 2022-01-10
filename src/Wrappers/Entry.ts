@@ -343,8 +343,12 @@ export class Entry{
             throw new Exception("Element to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         for (const section of sections){
-            if((section.pos_index <= new_pos_index) && (section.pos_index > section_to_reposition.pos_index)){
-                await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index-1, connection: transaction})
+            if(section_to_reposition.pos_index < new_pos_index){
+                if(section.pos_index > section_to_reposition.pos_index && section.pos_index <= new_pos_index)
+                    await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index-1, connection: transaction})    
+            }else{
+                if(section.pos_index >= new_pos_index && section.pos_index < section_to_reposition.pos_index)
+                    await Section.setProperty({id: section.id, property_name:"pos_index", new_value:section.pos_index+1, connection: transaction})     
             }
         }
         
