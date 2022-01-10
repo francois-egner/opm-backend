@@ -4,14 +4,15 @@ import { connection } from "../../db";
 import { User } from "../Wrappers/User";
 import { configuration } from "../Utils/Configurator"
 import HttpStatus from 'http-status-codes'  
-import { checkForUndefined } from "../Utils/Shared";
+import { checkForUndefined, hasNumber, isNumeric } from "../Utils/Shared";
 import { Exception } from "../Utils/Exception";
 
 
 export const authRouter = express.Router()
 
 const privMatrix = {
-    "/group/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PUT","GET"]}
+    "/group/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PUT","GET"]},
+    "/group/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETEs"]},
 }
 
 export async function auth(request: express.Request, response: express.Response, next) {
@@ -38,7 +39,14 @@ export async function auth(request: express.Request, response: express.Response,
 
     //Check if role is allowed to use used route
     const role = await User.getRole({id: request.auth.id})
-    if(!privMatrix[request.path].roles.includes(role))
+    const requestPath = request.path.replace(/\/\d+/g, "/:id")
+    
+    //If still a number in requestPath, the id contained a non numeric character
+    if(hasNumber(requestPath))
+        return response.status(HttpStatus.BAD_REQUEST).send()
+
+    //Check if user role may use the taken route
+    if(!privMatrix[requestPath].roles.includes(role))
         return response.status(HttpStatus.UNAUTHORIZED).send()
     
     

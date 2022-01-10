@@ -91,7 +91,8 @@ export const groupQueries = {
     findById: loadSQL("/Group/findById.sql"),
     deleteById: loadSQL("/Group/deleteById.sql"),
     setProperty: loadSQL("/Group/setProperty.sql"),
-    getOwner: loadSQL("/Group/getOwner.sql")
+    getOwner: loadSQL("/Group/getOwner.sql"),
+    getProperty: loadSQL("/Group/getProperty.sql")
 }
 
 

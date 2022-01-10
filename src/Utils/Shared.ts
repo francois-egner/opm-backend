@@ -22,6 +22,14 @@ export const formatString = (formatString: string, ...parameters:any): string =>
     return finalString
 }
 
+export function isNumeric(val) {
+    return /^-?\d+$/.test(val);
+}
+
+export function hasNumber(myString) {
+    return /\d/.test(myString);
+  }
+
 export const checkForUndefined = (ob: any): boolean =>{
     const keys = Object.keys(ob)
     for(const key of keys){

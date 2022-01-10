@@ -23,6 +23,12 @@ declare global {
             connection?: ITask<any> | IDatabase<any>
         }
 
+        export interface getProperty{
+            id: number,
+            property_name: string,
+            connection?: ITask<any> | IDatabase<any>
+        }
+
         namespace Section{
 
             /**
@@ -392,6 +398,8 @@ declare global {
             export interface getUnassignedGroups{
                 flat?: boolean
             }
+
+            
 
             /**
              * @param id Unique identifier of group to add entry to
