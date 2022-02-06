@@ -1,6 +1,4 @@
-- [x] Delete connection method parameter -> Transform it into a transaction
-- [x] Rewrite to queryObject
-- [ ] Handle unassigned value for entry_id (for sections) ...
-- [ ] Write proper Setter that will change values in database for existing models
-- [ ] Cleanup & finish documentation
-- [ ] Write config database information into sql files automatically
+- [ ] Define sensitive data
+
+
+NEXT: Full für alle Daten getten machen

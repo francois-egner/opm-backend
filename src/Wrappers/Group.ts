@@ -86,6 +86,7 @@ export class Group{
     private static async create_private({name, icon, supergroup_id, pos_index, root, transaction} : Params.Group.create){
         if(!root){
             //TODO: Parameter validation (owner_id)
+            //FIXME: Only retrieve id using getProperty to reduce overload
             const supergroup = await Group.findById({id: supergroup_id, connection: transaction})
 
             if(supergroup == null)
@@ -216,29 +217,55 @@ export class Group{
      * @param id Unique identifier of group to be found
      * @returns Group instance or null if no group with provided id was found
     */
-    static async findById({id, full=false, connection} : Params.Group.findById) : Promise<Group|null>{
+    static async findById({id, depth=1, full=false, connection} : Params.Group.findById) : Promise<Group|null>{
         return connection
-        ? await Group.findById_private({id: id, full: full,connection: connection})
-        : await conn.task(async (task)=>{return await Group.findById_private({id: id, full: full, connection: task})})
+        ? await Group.findById_private({id: id, depth: depth, full:full, connection: connection})
+        : await conn.task(async (task)=>{return await Group.findById_private({id: id,depth: depth, full:full,  connection: task})})
        
     }
 
-    private static async findById_private({id, full, connection} : Params.Group.findById) : Promise<Group|null>{
+    private static async findById_private({id, depth,full, connection} : Params.Group.findById) : Promise<Group|null>{
         try{
             const queryData = [id]
             const groupData= await connection.oneOrNone(groupQueries.findById, queryData)
             if(groupData == null)
                 return null
 
-                if(full){
-                    const subGroups = await Group.getSubGroups({id: id, flat: false, connection: connection})
-                    const entries = await Group.getEntries({id: id, flat: false, connection: connection})
-                    return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, subGroups, entries)
+            const subgroups = []
+            
+            if(depth > 0 || depth === -1){
+                const subGroups_ids = await Group.getSubGroups({id: id, connection: connection}) as number[]
+                if(subGroups_ids != null){
+                    for(const subgroup_id of subGroups_ids){
+                        subgroups.push(await Group.findById({id: subgroup_id, depth: depth === -1 ? -1 :depth-1, full: full, connection: connection}))
+                    }
                 }
 
-            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
+                
+            }
+
+            const entries = await Group.getEntries({id: id, flat: !full, connection: connection})
+
+
+            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, subgroups, entries)
+                
+
         }catch(err: unknown){
             throw new Exception("Failed to fetch group data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
+
+    static async getSubCount({id, connection=conn} : Params.Group.getSubCount) : Promise<number>{
+        const exists = await Group.exists({id: id, connection: connection})
+
+        if(!exists)
+            throw new Exception("Group not found to get subgroup count from", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+        
+        try{
+            const countData = await connection.one('SELECT COUNT(id) FROM "Category".groups WHERE supergroup_id = $1;', [id])
+            return countData.count
+        }catch(err: unknown){
+            throw new Exception("Failed to get subgroup count!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
@@ -479,16 +506,18 @@ export class Group{
 
         const subgroups_count = supergroup!.subgroups.length
 
-        if(!pos_index)
+        if(pos_index === undefined)
             pos_index = subgroups_count
 
         if(pos_index < 0 || pos_index > subgroups_count) 
             throw new Exception("Target position invalid!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         
-        for (const subgroup of supergroup!.subgroups as Group[]){
-            if(subgroup.pos_index >= pos_index!)
-                await Group.setProperty({id: subgroup.id, property_name:"pos_index", new_value:subgroup.pos_index+1, connection: transaction})   
+        for (const subgroup_id of supergroup!.subgroups as number[]){
+            const subgroup_pos_index = await Group.getProperty({id: subgroup_id, property_name: "pos_index", connection: transaction})
+            
+            if(subgroup_pos_index >= pos_index!)
+                await Group.setProperty({id: subgroup_id, property_name:"pos_index", new_value: subgroup_pos_index+1, connection: transaction})   
         }
             
         await Group.setProperty({id: group.id, property_name: "supergroup_id", new_value: id, connection: transaction})
@@ -699,7 +728,7 @@ export class Group{
         return this._id
     }
 
-    get subgroups(): Group[]{
+    get subgroups(): Group[] | number[]{
         return this._subGroups as Group[]
     }
 

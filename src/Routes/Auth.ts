@@ -12,7 +12,11 @@ export const authRouter = express.Router()
 
 const privMatrix = {
     "/group/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PUT","GET"]},
-    "/group/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETEs"]},
+    "/group/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETE"]},
+    "/group/move/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PATCH"]},
+    "/group/entries/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["GET"]},
+    "/user/data/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["GET"]},
+    "/user/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETE"]}
 }
 
 export async function auth(request: express.Request, response: express.Response, next) {
@@ -33,7 +37,7 @@ export async function auth(request: express.Request, response: express.Response,
     }
 
     //Check if user is enbaled
-    const user_enabled = await User.getProperty({id: request.auth.id, property_name:"enabled"})
+    const user_enabled = await User.getProperty({id: request.auth.id, property_name:["enabled"]})
     if(!user_enabled)
         return response.status(HttpStatus.UNAUTHORIZED).send()
 

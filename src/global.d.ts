@@ -347,6 +347,7 @@ declare global {
             export interface findById{
                 id: number,
                 connection?: ITask<any> | IDatabase<any>,
+                depth?: number,
                 full?: boolean
             }
 
@@ -380,6 +381,11 @@ declare global {
             export interface getEntries{
                 id: number,
                 flat?: boolean,
+                connection?: ITask<any> | IDatabase<any>
+            }
+
+            export interface getSubCount{
+                id: number,
                 connection?: ITask<any> | IDatabase<any>
             }
 
@@ -573,7 +579,7 @@ declare global {
 
             interface getProperty{
                 id: number,
-                property_name: string,
+                property_name: string[],
                 connection?: ITask<any> | IDatabase<any>
             }
 
@@ -592,6 +598,11 @@ declare global {
              */
             interface checkUsernameExistence{
                 username: string,
+                connection?: ITask<any> | IDatabase<any>
+            }
+
+            interface getAllData{
+                id: number,
                 connection?: ITask<any> | IDatabase<any>
             }
 
@@ -719,7 +730,8 @@ declare global {
               jwt_expiration_time: number
             },
             general:{
-              sqlPath: string
+              sqlPath: string,
+              max_group_name_length: number
             }
         }
     }

@@ -11,9 +11,10 @@
       "interface": "localhost",
       "port": 3000,
       "jwt_secret": "Test",
-      "jwt_expiration_time": 10
+      "jwt_expiration_time": 100000
     },
     "general":{
-        "sqlPath": "/Users/crypt0n/Documents/Repositories/REST-API/db"
+        "sqlPath": "/Users/crypt0n/Documents/Repositories/REST-API/db",
+        "max_group_name_length": 50
     }
 }

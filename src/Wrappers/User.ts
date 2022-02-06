@@ -124,20 +124,43 @@ export class User{
         return await User.findById({id: user_id.id, connection: connection})
     }
 
+
+
     static async getRole({id}: Params.User.getRole) : Promise<Types.User.Role>{
-        return await User.getProperty({id: id, property_name: "role"})
+        return await User.getProperty({id: id, property_name: ["role"]})
     }
 
-    static async getProperty({id, property_name, connection=conn} : Params.User.getProperty) : Promise<any>{
+    static async getProperty({id, property_name, connection=conn} : Params.User.getProperty) : Promise<any[] | any>{
         try{
-            const queryString = formatString(userQueries.getProperty, property_name)
-            const propertyData = await connection.one(queryString, [id])
-            return propertyData[property_name]
+
+            let properties = property_name[0]
+            for(let i = 1; i < property_name.length; i++)
+                properties = `${properties}, ${property_name[i]}`
+            
+            const queryString = formatString(userQueries.getProperty, properties)
+            const propertyData = await connection.manyOrNone(queryString, [id])
+            
+            const returnData = []
+            for(let index = 0; index < propertyData.length; index++){
+                returnData.push(propertyData[index][property_name[index]])
+            }
+
+            return propertyData.length === 1 ? returnData[0] : returnData
         }catch(err: unknown){
             throw new Exception("Failed to fetch property!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
+
+
+    static async getAllData({id, connection=conn} : Params.User.getAllData) : Promise<Group>{
+        
+        const root_id= await User.getProperty({id: id, property_name:["root_id"], connection: connection})
+        
+        const data = await Group.findById({id: root_id, depth:-1, full: true, connection: connection })
+        
+        return data
+    }
     
 
     /**
@@ -270,18 +293,7 @@ export class User{
         }
     }
 
-    static async login({id, connection} : Params.User.login) : Promise<void>{
-        const user = await User.findById({id: id, connection})
-
-        if(user == null)
-            throw new Exception("Failed to find user to be logged in!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
-        
-        if (!user.enabled)
-            throw new Exception("User not permitted to login!", Types.ExceptionType.ParameterError, HttpStatus.FORBIDDEN)
-        
-        //Generate JWT
-        
-    }
+   
 
     //#region Getters & Setters
 

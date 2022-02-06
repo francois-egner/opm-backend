@@ -6,6 +6,35 @@ export const isValidB64 = (b64img: string) : boolean=>{
     return b64_regex.test(b64img);
 }
 
+export const isSupportImage = (image_bytes: number[]) : boolean=>{
+    //PNG: 0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A
+    //JPG: 0xFF 0xD8 0xFF 0xE0 0x00 0x10 0x4A 0x46 0x49 0x46 0x00 0x01, 0xFF 0xD8 0xFF 0xEE, 
+    //ICO: 0x00 0x00 0x01 0x00
+    const images_magic_bytes = [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+                               [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01], 
+                               [0xFF, 0xD8, 0xFF, 0xEE], [0x00, 0x00, 0x01, 0x00]]
+                        
+   
+
+    for (const magic_bytes of images_magic_bytes){
+        if(arrayStartsWith(image_bytes, magic_bytes))
+            return true
+    }
+    return false
+}
+
+export const arrayStartsWith = (arr: any[], data: any[] | any) : boolean=>{
+    if (Array.isArray(data)){
+        for(let index = 0; index < data.length; index++){
+            if(arr[index] !== data[index])
+                return false
+        }
+        return true
+    }else{
+        return arr[0] === data
+    }
+}
+
 export const isValidEmail = (email: string): boolean =>{
     //Reference: https://emailregex.com/
     // eslint-disable-next-line
