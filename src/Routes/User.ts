@@ -1,11 +1,8 @@
 import express from "express"
 import {connection} from "../../db"
-import { Group } from "../Wrappers/Group"
 import { User } from "../Wrappers/User"
 import HttpStatus from 'http-status-codes'  
 import { Exception } from "../Utils/Exception"
-import { configuration as config } from "../Utils/Configurator"
-import { isSupportImage, isValidB64 } from "../Utils/Shared"
 
 export const userRouter = express.Router()
 

@@ -4,7 +4,7 @@ import { connection } from "../../db";
 import { User } from "../Wrappers/User";
 import { configuration } from "../Utils/Configurator"
 import HttpStatus from 'http-status-codes'  
-import { checkForUndefined, hasNumber, isNumeric } from "../Utils/Shared";
+import { checkForUndefined, hasNumber } from "../Utils/Shared";
 import { Exception } from "../Utils/Exception";
 
 

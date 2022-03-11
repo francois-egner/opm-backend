@@ -1,6 +1,6 @@
 import { Exception } from "../Utils/Exception"
-import {  checkForUndefined, formatString, isValidB64, isValidEmail } from "../Utils/Shared"
-import { connection as conn, connection, groupQueries, userQueries} from "../../db"
+import {  formatString, isValidB64 } from "../Utils/Shared"
+import { connection as conn, userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
 import { Group } from "./Group"
 

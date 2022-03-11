@@ -1,8 +1,8 @@
 
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
-import { connect, connection as conn, elementQueries } from "../../db"
-import { Section } from "../Wrappers/Section"
+import { connection as conn, elementQueries } from "../../db"
+import { Section } from "./Section"
 import { formatString } from "../Utils/Shared"
 import { User } from "./User"
 
@@ -26,31 +26,31 @@ export class Element{
     /**
      * Name of element
      */
-    private _name: string
+    private readonly _name: string
 
     /**
      * Position (index) of element inside of the associated section
      */
-    private _pos_index: number
+    private readonly _pos_index: number
 
     /**
      * Unique identifier of section the element is part of
      */
-    private _section_id: number
+    private readonly _section_id: number
 
     /**
      * Value of element
      */
-    private _value: string
+    private readonly _value: string
 
     /**
      * Type of element (e.g. password, cleartext, binary file etc.)
      */
-    private _type: Types.Element.ElementType
+    private readonly _type: Types.Element.ElementType
 
 
     /**
-    * @param id Unique identifier of element
+    * @param {number} id - Unique identifier of element
     * @param name Name of element
     * @param value Actual value of element
     * @param type Type of element (e.g. password, cleartext, binary file etc.)
@@ -69,12 +69,14 @@ export class Element{
 
     
     /**
-    * Creates a new element
-    * @param name Name of new element
-    * @param value Value/data of the element (e.g. actual password, binary data etc.)
-    * @param type Type of element (e.g. password, cleartext, binary file etc.)
-    * @param [transaction] Transaction object for querying
-    */
+     * Creates a new element
+     * @param name Name of new element
+     * @param value Value/data of the element (e.g. actual password, binary data etc.)
+     * @param type Type of element (e.g. password, cleartext, binary file etc.)
+     * @param section_id
+     * @param pos_index
+     * @param [transaction] Transaction object for querying
+     */
     static async create({name, value, type, section_id, pos_index, transaction} : Params.Element.create): Promise<Element>{
         return transaction
         ? await Element.create_private({name: name, value: value, type: type, section_id: section_id, pos_index: pos_index, transaction: transaction})

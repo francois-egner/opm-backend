@@ -1,5 +1,5 @@
 import { connection as conn, entryQueries } from "../../db"
-import { checkForUndefined, formatString } from "../Utils/Shared"
+import { formatString } from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { Section } from '../Wrappers/Section'

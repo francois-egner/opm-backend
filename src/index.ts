@@ -1,18 +1,13 @@
 
 import { loadConfiguration } from "./Utils/Configurator";
-import { User } from "./Wrappers/User";
 import {logger} from './Utils/Logger';
-import {connect, disconnect, groupQueries, sectionQueries} from '../db'
+import {connect, disconnect} from '../db'
 import { Exception } from "./Utils/Exception";
 import express from "express";
 import { configuration } from "./Utils/Configurator"
 import { auth, authRouter } from "./Routes/Auth"
 import { groupRouter } from "./Routes/Group"
-import jwt from "express-jwt"  
-import { isValidB64 } from "./Utils/Shared";
-import { Entry } from "./Wrappers/Entry"
 import { userRouter } from "./Routes/User"
-import compression from "compression"
 
 const server = express()
 
