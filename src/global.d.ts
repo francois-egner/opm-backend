@@ -1,4 +1,4 @@
-import { IDatabase, ITask } from "pg-promise";
+import { ITask } from "pg-promise";
 import {Element as ElementClass} from './Wrappers/Element'
 import {Section as SectionClass} from './Wrappers/Section'
 import {Entry as EntryClass} from './Wrappers/Entry'
@@ -20,13 +20,13 @@ declare global {
             id: number,
             property_name: string,
             new_value: any,
-            connection?: ITask<any> | IDatabase<any>
+            session: ITask<never>
         }
 
         export interface getProperty{
             id: number,
             property_name: string,
-            connection?: ITask<any> | IDatabase<any>
+            session: ITask<never>
         }
 
         namespace Section{
@@ -35,35 +35,35 @@ declare global {
             * @param name Name of new sections
             * @param entry_id Unique identifier of entry the section should be part of
             * @param [pos_index] Position (index) of section in entry
-            * @param [transaction] Transation object for querying
+            * @param session - Associated session
             */
             export interface create{
                 name: string,
                 entry_id: number,
                 pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
             
             /**
             * @param id Unique identifier of section to check existence for
-            * @param [connection] Task or Transaction object for querying
+            * @param session - Associated session
             */
             export interface exists{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
             * @param id Unique identifier of section the element should be added to
             * @param element Instance of element to be added to section with provided id
             * @param [pos_index] Position (index) where the element should be place into. If not provided, it will be placed last
-            * @param [transaction] Transaction object for querying
+            * @param session - Associated session
             */
             export interface addElement{
                 id: number,
                 element: ElementClass,
                 pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
 
@@ -71,13 +71,13 @@ declare global {
             * @param id Unique identifier of section an element should be removed from
             * @param element_id Unique identifier of element to be removed from section
             * @param del if true, the element will be deleted
-            * @param [transaction] Transaction object for querying
+            * @param session - Associated session
             */
             export interface removeElement{
                 id: number,
                 element_id: number,
                 del?:boolean,
-                transaction? : ITask<any>
+                session : ITask<never>
             }
 
             /**
@@ -85,67 +85,67 @@ declare global {
             * @param element_id Unique identifier of the element to be moved
             * @param new_section_id Unique identifier of section the element should be moved to
             * @param [new_pos_index] Position (index) of element in section the element will be moved to
-            * @param [transaction] Transaction object for querying
+            * @param session - Associated session
             */
             export interface moveElement{
                 id: number,
                 element_id: number,
                 new_section_id: number,
                 new_pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
             * @param id Unique identifier of section
             * @param element_id Unique identifier of associated element to be repositioned
             * @param new_pos_index Position (index) the element should be moved to
-            * @param [transaction] Transaction object for querying
+            * @param session - Associated session
             */
             export interface repositionElement{
                 id: number,
                 element_id: number,
                 new_pos: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
-            * @param id Unique identifier of section all associated elements should be returned from
-            * @param flat If true, only ids of associated elements will be returned
-            * @param [connection] Task or Transaction object for querying
+            * @param id - Unique identifier of section all associated elements should be returned from
+            * @param flat - If true, only ids of associated elements will be returned
+            * @param session - Associated session
             */
             export interface getElements{
                 id: number,
                 flat?: boolean,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
             * @param id Unique identifier of section to be returned
-            * @param [connection] Task or Transaction object for querying
-            */
+            * @param session - Associated session
+             */
             export interface findById{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
             * @param id Unique identifier of section to be deleted
-            * @param [transaction] Transaction object for querying
+            * @param session - Associated session
             */
             export interface deleteById{
                 id: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
              * @param id Unique identifier of group to get owner of
              * @param [flat] If true, only id will be returned
-             * @param [connection] Task or Transaction object for querying
+             * @param session - Associated session
              */
              export interface getOwner{
                 id: number,
                 flat?: boolean,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
         }
 
@@ -157,7 +157,7 @@ declare global {
             * @param type Type of element (e.g. password, cleartext, binary file etc.)
             * @param section_id Unique identifier of section the element should be added to
             * @param [pos_index] Position (index) for new element in section
-            * @param [transaction] Transaction object for querying
+            * @param session - Associated session
             */
             export interface create{
                 name: string,
@@ -165,17 +165,17 @@ declare global {
                 type: Types.Element.ElementType,
                 section_id: number,
                 pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
-            * @param id Unique identifier of element to be found 
-            * @param [connection] Task or Transaction object for querying
+            * @param id - Unique identifier of element to be found 
+            * @param session - Associated session
             * @returns Instance of a found element or null if no element with provided id was found
             */
             export interface findById{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -185,27 +185,27 @@ declare global {
             */
             export interface exists{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
-            * @param id Unique identifier of element to be deleted
-            * @param [transaction] Transaction object for querying 
+            * @param id - Unique identifier of element to be deleted
+            * @param session - Associated session 
             */
             export interface deleteById{
                 id: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
              * @param id Unique identifier of group to get owner of
              * @param [flat] If true, only id will be returned
-             * @param [connection] Task or Transaction object for querying  
+             * @param session - Associated session  
             */
              export interface getOwner{
                 id: number,
                 flat?: boolean,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
         }
 
@@ -224,7 +224,7 @@ declare global {
                 icon?: string,
                 group_id: number,
                 pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -237,7 +237,7 @@ declare global {
                 id: number,
                 section: SectionClass,
                 pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -250,7 +250,7 @@ declare global {
                 id: number,
                 section_id: number,
                 del?: boolean,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -265,7 +265,7 @@ declare global {
                 section_id: number,
                 new_entry_id: number,
                 new_pos_index: number,
-                transaction? : ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -278,7 +278,7 @@ declare global {
                 id: number,
                 section_id: number,
                 new_pos_index: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -287,7 +287,7 @@ declare global {
              */
             export interface deleteById{
                 id: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -296,7 +296,7 @@ declare global {
              */
             export interface findById{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -307,7 +307,7 @@ declare global {
             export interface getSections{
                 id: number,
                 flat?: boolean,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -316,7 +316,7 @@ declare global {
              */
             export interface exists{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
         }
 
@@ -336,7 +336,7 @@ declare global {
                 supergroup_id?: number,
                 pos_index?: number,
                 root?: boolean,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -346,7 +346,7 @@ declare global {
              */
             export interface findById{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>,
+                session: ITask<never>,
                 depth?: number,
                 full?: boolean
             }
@@ -357,7 +357,7 @@ declare global {
              */
             export interface exists{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -370,7 +370,7 @@ declare global {
                 id: number,
                 flat?: boolean,
                 full?: boolean,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -381,12 +381,12 @@ declare global {
             export interface getEntries{
                 id: number,
                 flat?: boolean,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             export interface getSubCount{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -395,7 +395,7 @@ declare global {
              */
             export interface deleteById{
                 id: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -417,7 +417,7 @@ declare global {
                 id: number,
                 entry: EntryClass,
                 pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -430,7 +430,7 @@ declare global {
                 id: number,
                 entry_id,
                 del?: boolean,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -443,7 +443,7 @@ declare global {
                 id: number,
                 entry_id: number,
                 new_pos_index: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -458,7 +458,7 @@ declare global {
                 entry_id: number,
                 new_group_id: number,
                 new_pos_index: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -471,7 +471,7 @@ declare global {
                 id: number,
                 group: GroupClass,
                 pos_index?: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -484,7 +484,7 @@ declare global {
                 id: number,
                 subgroup_id: number,
                 del?: boolean,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -497,7 +497,7 @@ declare global {
                 id: number,
                 subgroup_id: number,
                 new_pos_index: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -512,7 +512,7 @@ declare global {
                 subgroup_id: number,
                 new_supergroup_id: number,
                 new_pos_index: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -523,7 +523,7 @@ declare global {
             export interface getOwner{
                 id: number,
                 flat?: boolean,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
         }
 
@@ -552,7 +552,7 @@ declare global {
                 display_name: string,
                 enabled?: boolean,
                 profile_picture?: string,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -561,26 +561,27 @@ declare global {
              */
             interface findById{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             interface findByEmail{
                 email: string,
                 password_hash: string,
-                connection?: ITask<any>
+                session: ITask<never>
             }
 
             /**
              * @param id Unique identifier of user to get role from
              */
             interface getRole{
-                id: number
+                id: number,
+                session: ITask<never>
             }
 
             interface getProperty{
                 id: number,
                 property_name: string[],
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -589,7 +590,7 @@ declare global {
              */
             interface checkEmailExistence{
                 email: string,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -598,12 +599,12 @@ declare global {
              */
             interface checkUsernameExistence{
                 username: string,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             interface getAllData{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -612,7 +613,7 @@ declare global {
             */
              export interface deleteById{
                 id: number,
-                transaction?: ITask<any>
+                session: ITask<never>
             }
 
             /**
@@ -621,7 +622,7 @@ declare global {
              */
             export interface exists{
                 id: number,
-                connection?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -630,7 +631,7 @@ declare global {
              */
             export interface disable{
                 id: number,
-                transaction?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -639,7 +640,7 @@ declare global {
              */
             export interface enable{
                 id: number,
-                transaction?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -650,7 +651,7 @@ declare global {
             export interface changeProfilePicture{
                 id: number,
                 new_profile_picture: string,
-                transaction?: ITask<any> | IDatabase<any>
+                session: ITask<never>
             }
 
             /**
@@ -658,7 +659,7 @@ declare global {
              */
             export interface login{
                 id: number,
-                connection?: ITask<any>
+                session: ITask<never>
             }
         }
     }
@@ -741,6 +742,7 @@ declare global {
           auth?: {
               id: number
           }
+          session: ITask<never>
         }
     }
 }

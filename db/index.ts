@@ -27,14 +27,14 @@ export async function connect(): Promise<void>{
         max: 10
         
     });
-  
+    
     connected = true
     connection = db
 }
 
 export async function disconnect(): Promise<void>{
     if(connected){
-        connection.$pool.end()
+        await connection.$pool.end()
         connected = false
     }
 }
@@ -44,7 +44,7 @@ export const userQueries = {
     findById: loadSQL("/User/findById.sql"),
     findByEmail: loadSQL("/User/findByEmail.sql"),
     checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
-    checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql"),
+    checkUsernameExistence: loadSQL("/User/checkUsernameExistence.sql"),
     exists: loadSQL("/User/exists.sql"),
     setProperty: loadSQL("/User/setProperty.sql"),
     getProperty: loadSQL("/User/getProperty.sql")

@@ -1,8 +1,8 @@
-import { Exception } from "../Utils/Exception"
-import {  formatString, isValidB64 } from "../Utils/Shared"
-import { connection as conn, userQueries} from "../../db"
+import {Exception} from "../Utils/Exception"
+import {formatString, isValidB64} from "../Utils/Shared"
+import {userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
-import { Group } from "./Group"
+import {Group} from "./Group"
 
 const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enabled", "profile_picture"]
 
@@ -10,27 +10,27 @@ export class User{
 
     private readonly _id: number
 
-    private _email: string
+    private readonly _email: string
 
     private readonly _username: string
 
-    private _password_hash: string
+    private readonly _password_hash: string
 
-    private _role: Types.User.Role
+    private readonly _role: Types.User.Role
 
-    private _forename: string
+    private readonly _forename: string
 
-    private _surname: string
+    private readonly _surname: string
 
-    private _display_name: string
+    private readonly _display_name: string
 
-    private _enabled: boolean
+    private readonly _enabled: boolean
 
     private readonly _creation_date: Date
 
     private readonly _root_id: number
 
-    private _profile_picture: string
+    private readonly _profile_picture: string
 
     private readonly _last_login: Date
 
@@ -66,25 +66,17 @@ export class User{
      * @param transaction Transaction object for querying 
      * @returns Instance of newly created user
      */
-    static async create({email, username, password_hash, role=Types.User.Role.normal, forename, surname, display_name, enabled=true, profile_picture, transaction} : Params.User.create): Promise<User>{
-        
-        return transaction
-        ? await User.create_private({email: email, username: username, password_hash: password_hash, role: role, forename: forename, 
-                                    surname: surname, display_name: display_name, enabled: enabled, profile_picture: profile_picture, transaction: transaction})
-        : await conn.tx(async (tx)=>{return await User.create_private({email: email, username: username, password_hash: password_hash, role: role, forename: forename, 
-                                    surname: surname, display_name: display_name, enabled: enabled, profile_picture: profile_picture, transaction: tx})})
-    }
 
-    private static async create_private({email, username, password_hash, role, forename, surname, display_name, enabled=false, profile_picture, transaction} : Params.User.create): Promise<User>{
-        if(await User.checkEmailExistence({email: email, connection: transaction}) || await User.checkUsernameExistence({username: username, connection: transaction}))
+    static async create({email, username, password_hash, role, forename, surname, display_name, enabled=false, profile_picture, session} : Params.User.create): Promise<User>{
+        if(await User.checkEmailExistence({email: email, session: session}) || await User.checkUsernameExistence({username: username, session: session}))
             throw new Exception("User with provided email or username already exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
-            const root_group = await Group.create({name: `${username}_root`, root: true, transaction: transaction})
-                
+            const root_group = await Group.create({name: `${username}_root`, root: true, session: session})
+                            
             const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now() ]
-
-            const userData = await transaction.one(userQueries.create, queryData)
+            
+            const userData = await session.one(userQueries.create, queryData)
             return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), 
                             userData.root_id, userData.profile_picture, new Date(userData.last_login))
             
@@ -97,12 +89,13 @@ export class User{
 
     /**
      * Fetches user data
-     * @param id Unique identifier of user to bef ound 
+     * @param id Unique identifier of user to bef ound
+     * @param session
      * @returns User or null, if no user with provided id was found
      */
-    static async findById({id, connection=conn} : Params.User.findById) : Promise<User|null>{
+    static async findById({id, session} : Params.User.findById) : Promise<User|null>{
         try{
-            const userData = await connection.oneOrNone(userQueries.findById, [id])
+            const userData = await session.oneOrNone(userQueries.findById, [id])
             if(userData == null)
                 return null
             
@@ -115,22 +108,20 @@ export class User{
         }
     }
 
-    static async findByEmail({email, password_hash, connection} :  Params.User.findByEmail) : Promise<User|null>{
-        const user_id = await connection.oneOrNone(userQueries.findByEmail, [email, password_hash])
+    static async findByEmail({email, password_hash, session} :  Params.User.findByEmail) : Promise<User|null>{
+        const user_id = await session.oneOrNone(userQueries.findByEmail, [email, password_hash])
         
         if(user_id == null)
             return null
 
-        return await User.findById({id: user_id.id, connection: connection})
+        return await User.findById({id: user_id.m_id, session: session})
+    }
+    
+    static async getRole({id, session}: Params.User.getRole) : Promise<Types.User.Role>{
+        return await User.getProperty({id: id, property_name: ["role"], session: session})
     }
 
-
-
-    static async getRole({id}: Params.User.getRole) : Promise<Types.User.Role>{
-        return await User.getProperty({id: id, property_name: ["role"]})
-    }
-
-    static async getProperty({id, property_name, connection=conn} : Params.User.getProperty) : Promise<any[] | any>{
+    static async getProperty({id, property_name, session} : Params.User.getProperty) : Promise<any[] | any>{
         try{
 
             let properties = property_name[0]
@@ -138,7 +129,7 @@ export class User{
                 properties = `${properties}, ${property_name[i]}`
             
             const queryString = formatString(userQueries.getProperty, properties)
-            const propertyData = await connection.manyOrNone(queryString, [id])
+            const propertyData = await session.manyOrNone(queryString, [id])
             
             const returnData = []
             for(let index = 0; index < propertyData.length; index++){
@@ -153,13 +144,11 @@ export class User{
 
 
 
-    static async getAllData({id, connection=conn} : Params.User.getAllData) : Promise<Group>{
+    static async getAllData({id, session} : Params.User.getAllData) : Promise<Group>{
         
-        const root_id= await User.getProperty({id: id, property_name:["root_id"], connection: connection})
-        
-        const data = await Group.findById({id: root_id, depth:-1, full: true, connection: connection })
-        
-        return data
+        const root_id= await User.getProperty({id: id, property_name:["root_id"], session: session})
+
+        return await Group.findById({id: root_id, depth: -1, full: true, session: session})
     }
     
 
@@ -168,21 +157,14 @@ export class User{
      * @param id Unique identifier of user to be deleted
      * @param [transaction] Transaction object for querying
      */
-    static async deleteById({id, transaction} : Params.User.deleteById) : Promise<void>{
-       return await transaction 
-       ? await User.deleteById_user({id: id, transaction: transaction})
-       : conn.tx(async (tx)=>{ return await User.deleteById_user({id: id, transaction: tx})})
-
-    }
-
-    private static async deleteById_user({id, transaction} : Params.User.deleteById) : Promise<void>{
-        const user = await User.findById({id: id, connection: transaction})
+    private static async deleteById_user({id, session} : Params.User.deleteById) : Promise<void>{
+        const user = await User.findById({id: id, session: session})
         if(user == null)
             throw new Exception("User to be deleted not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{    
-            await Group.deleteById({id: user.root_id, transaction: transaction})
-            await transaction.none('DELETE FROM "User".users WHERE id=$1;', [id])
+            await Group.deleteById({id: user.root_id, session: session})
+            await session.none('DELETE FROM "User".users WHERE id=$1;', [id])
             
         }catch(err: unknown){
             throw new Exception("Failed to delete user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -191,9 +173,9 @@ export class User{
 
 
 
-    static async exists({id, connection=conn} : Params.User.exists) : Promise<boolean>{
+    static async exists({id, session} : Params.User.exists) : Promise<boolean>{
         try{
-            const existsData = await connection.oneOrNone(userQueries.exists, [id])
+            const existsData = await session.oneOrNone(userQueries.exists, [id])
             return existsData.exists
         }catch(err: unknown){
             throw new Exception("Failed to check user existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -205,11 +187,12 @@ export class User{
     /**
      * Checks if a user with the provided email address exists
      * @param email E-mail address to be checked for
-    */
-    static async checkEmailExistence({email, connection=conn} : Params.User.checkEmailExistence) : Promise<boolean>{
+     * @param session
+     */
+    static async checkEmailExistence({email, session} : Params.User.checkEmailExistence) : Promise<boolean>{
         try{
             const queryData = [email]
-            const existsData = await connection.one(userQueries.checkEmailExistence, queryData)
+            const existsData = await session.one(userQueries.checkEmailExistence, queryData)
             
             return existsData.exists
         }catch(err: unknown){
@@ -222,11 +205,12 @@ export class User{
     /**
      * Check if a user with the provided username exists
      * @param username Username to be checked for
-    */
-    static async checkUsernameExistence({username, connection= conn} : Params.User.checkUsernameExistence) : Promise<boolean>{
+     * @param session
+     */
+    static async checkUsernameExistence({username, session} : Params.User.checkUsernameExistence) : Promise<boolean>{
         try{
             const queryData = [username]
-            const existsData = await connection.one(userQueries.checkUsernamExistence, queryData)
+            const existsData = await session.one(userQueries.checkUsernameExistence, queryData)
             
             return existsData.exists
         }catch(err: unknown){
@@ -241,43 +225,24 @@ export class User{
      * @param id Unique identifier of user to be disabled
      * @param [transaction] Transaction for querying
     */
-    static async disable({id, transaction} : Params.User.disable) : Promise<void>{
-        return transaction
-        ? await User.disable_private({id: id, transaction: transaction})
-        : await conn.tx(async (tx)=>{return await User.disable_private({id: id, transaction: tx})})
-    }
-
-    static async disable_private({id, transaction} : Params.User.disable) : Promise<void>{
-        await User.setProperty({id: id, property_name:"enabled", new_value:false, connection: transaction})
+    static async disable({id, session} : Params.User.disable) : Promise<void>{
+        await User.setProperty({id: id, property_name:"enabled", new_value:false, session: session})
     }
 
 
 
     /**
-     * Enbaled users account
+     * Enabled users account
      * @param id Unique identifier user to be enabled
      * @param [transaction] Transaction for querying
     */
-    static async enable({id, transaction} : Params.User.disable) : Promise<void>{
-        return transaction
-        ? await User.enable_private({id: id, transaction: transaction})
-        : await conn.tx(async (tx)=>{return await User.enable_private({id: id , transaction: tx})})
-    }
-
-    static async enable_private({id, transaction} : Params.User.disable) : Promise<void>{
-        await User.setProperty({id: id, property_name:"enabled", new_value:true, connection: transaction})
+    static async enable({id, session} : Params.User.disable) : Promise<void>{
+        await User.setProperty({id: id, property_name:"enabled", new_value:true, session: session})
     }
 
 
-
-    static async changeProfilePicture({id, new_profile_picture, transaction}: Params.User.changeProfilePicture) : Promise<void>{
-        return transaction
-        ? await User.changeProfilePicture_private({id: id, new_profile_picture: new_profile_picture, transaction: transaction})
-        : await conn.task(async (task)=>{return await User.changeProfilePicture_private({id: id, new_profile_picture: new_profile_picture, transaction: task})})
-    }
-
-    static async changeProfilePicture_private({id, new_profile_picture, transaction}: Params.User.changeProfilePicture) : Promise<void>{
-        const exists = await User.exists({id: id})
+    static async changeProfilePicture({id, new_profile_picture, session}: Params.User.changeProfilePicture) : Promise<void>{
+        const exists = await User.exists({id: id, session})
         
         if(!exists)
             throw new Exception("User to change profile picture of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -287,7 +252,7 @@ export class User{
         
         try{
             const queryData = [id, new_profile_picture]
-            await transaction.none('UPDATE "User".users SET profile_picture=$2 WHERE id=$1;', queryData)
+            await session.none('UPDATE "User".users SET profile_picture=$2 WHERE id=$1;', queryData)
         }catch(err: unknown){
             throw new Exception("Failed to change profile picture!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -304,17 +269,11 @@ export class User{
      * @param new_value New value for provided property
      * @param [transaction] Transaction object for querying
      */
-    static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
-        return connection
-        ? await User.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: connection})
-        : await conn.tx(async (tx)=>{return await User.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: tx})})
-    }
-
-    private static async setProperty_private({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+    private static async setProperty({id, property_name, new_value, session} : Params.setProperty) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const exists = await User.exists({id: id, connection: connection})
+        const exists = await User.exists({id: id, session: session})
         if(!exists)
             throw new Exception("Unable to find entry to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
@@ -322,9 +281,9 @@ export class User{
 
 
             const queryString = formatString(userQueries.setProperty as string, property_name)
-            const queryData = [id,  new_value]
+            const queryData = [id, new_value]
 
-            await connection.none(queryString, queryData)
+            await session.none(queryString, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to change property of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }

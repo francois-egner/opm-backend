@@ -9,6 +9,7 @@ import { isSupportImage, isValidB64 } from "../Utils/Shared"
 
 export const groupRouter = express.Router()
 
+/*
 async function checkGroupAuth({user_id, group_id, tx}): Promise<boolean>{
     
     const isRoot = group_id === await User.getProperty({id: user_id, property_name:["root_id"], connection: tx})
@@ -24,7 +25,7 @@ async function checkGroupAuth({user_id, group_id, tx}): Promise<boolean>{
 
 groupRouter.get("/:id", async (req,res)=>{
     try{
-        const group_id = Number(req.params.id)
+        const group_id = Number(req.params.m_id)
         
         await connection.task(async (task)=>{
             
@@ -60,7 +61,7 @@ groupRouter.put("/", async (req, res)=>{
                 supergroup_id: req.body.supergroup_id === undefined 
                                ? await User.getProperty({id: req.auth.id, property_name:["root_id"], connection: tx}) 
                                : req.body.supergroup_id,
-                transaction: tx
+                session: tx
                 
             }
             
@@ -87,7 +88,7 @@ groupRouter.put("/", async (req, res)=>{
 groupRouter.delete("/:id", async (req, res)=>{
     
     try{
-        const group_id = Number(req.params.id)
+        const group_id = Number(req.params.m_id)
         
         await connection.tx(async (tx)=>{
             
@@ -111,7 +112,7 @@ groupRouter.delete("/:id", async (req, res)=>{
 
 groupRouter.patch("/:id", async (req, res)=>{
     try{
-        const group_id = Number(req.params.id)
+        const group_id = Number(req.params.m_id)
 
         await connection.tx(async (tx)=>{
             //Check if group is owned by requesting user & group is not root group
@@ -168,7 +169,7 @@ groupRouter.patch("/:id", async (req, res)=>{
 groupRouter.patch("/move/:id", async (req, res)=>{
     try{
 
-        const group_id = Number(req.params.id)
+        const group_id = Number(req.params.m_id)
 
         await connection.tx(async (tx)=>{
             if (!await checkGroupAuth({user_id: req.auth.id, group_id: group_id, tx: tx}))
@@ -199,7 +200,7 @@ groupRouter.patch("/move/:id", async (req, res)=>{
 //Get all entries of a group
 groupRouter.get("/entries/:id", async (req, res)=>{
     try{
-        const group_id = Number(req.params.id)
+        const group_id = Number(req.params.m_id)
         const entries = await connection.task(async (task)=>{
             if (!await checkGroupAuth({user_id: req.auth.id, group_id: group_id, tx: task}))
                 return res.status(HttpStatus.FORBIDDEN).send()
@@ -211,4 +212,4 @@ groupRouter.get("/entries/:id", async (req, res)=>{
         console.log(err)
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()
     }
-})
+})*/

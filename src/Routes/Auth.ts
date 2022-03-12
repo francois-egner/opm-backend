@@ -4,7 +4,7 @@ import { connection } from "../../db";
 import { User } from "../Wrappers/User";
 import { configuration } from "../Utils/Configurator"
 import HttpStatus from 'http-status-codes'  
-import { checkForUndefined, hasNumber } from "../Utils/Shared";
+import {checkForUndefined, hasNumber, Sleep} from "../Utils/Shared";
 import { Exception } from "../Utils/Exception";
 
 
@@ -20,51 +20,56 @@ const privMatrix = {
 }
 
 export async function auth(request: express.Request, response: express.Response, next) {
-    const bearer_header = request.headers.authorization
     
-    if(bearer_header === undefined || !bearer_header.startsWith("Bearer "))
-        return response.status(401).send()
+        const bearer_header = request.headers.authorization
 
-    
-    const jwt = bearer_header.substring(7, bearer_header.length)
-    
-    //Check for valid jwt
-    try{
-        const decoded_jwt:any = verify(jwt, configuration.express.jwt_secret)
-        request.auth = {id: decoded_jwt.id}
-    }catch(err: unknown){
-        return response.status(HttpStatus.UNAUTHORIZED).send()
-    }
+        if(bearer_header === undefined || !bearer_header.startsWith("Bearer "))
+            return response.status(401).send()
 
-    //Check if user is enbaled
-    const user_enabled = await User.getProperty({id: request.auth.id, property_name:["enabled"]})
-    if(!user_enabled)
-        return response.status(HttpStatus.UNAUTHORIZED).send()
 
-    //Check if role is allowed to use used route
-    const role = await User.getRole({id: request.auth.id})
-    const requestPath = request.path.replace(/\/\d+/g, "/:id")
-    
-    //If still a number in requestPath, the id contained a non numeric character
-    if(hasNumber(requestPath))
-        return response.status(HttpStatus.BAD_REQUEST).send()
+        const jwt = bearer_header.substring(7, bearer_header.length)
 
-    //Check if user role may use the taken route
-    if(!privMatrix[requestPath].roles.includes(role))
-        return response.status(HttpStatus.UNAUTHORIZED).send()
+        //Check for valid jwt
+        try{
+            const decoded_jwt:any = verify(jwt, configuration.express.jwt_secret)
+            request.auth = {id: decoded_jwt.m_id}
+        }catch(err: unknown){
+            return response.status(HttpStatus.UNAUTHORIZED).send()
+        }
+
+        //Check if user is enbaled
+        const user_enabled = await User.getProperty({id: request.auth.id, property_name:["enabled"], session: request.session})
+        if(!user_enabled)
+            return response.status(HttpStatus.UNAUTHORIZED).send()
+
+        //Check if role is allowed to use used route
+        const role = await User.getRole({id: request.auth.id, session: request.session})
+        const requestPath = request.path.replace(/\/\d+/g, "/:id")
+
+        //If still a number in requestPath, the id contained a non numeric character
+        if(hasNumber(requestPath))
+            return response.status(HttpStatus.BAD_REQUEST).send()
+
+        //Check if user role may use the taken route
+        if(!privMatrix[requestPath].roles.includes(role))
+            return response.status(HttpStatus.UNAUTHORIZED).send()
+
+
+        next(request,response, next, request.session)
+        console.log("End!")
     
     
-    next();
+    
 }
 
-authRouter.put('/login', async (req, res)=>{
+authRouter.put('/login/', async (req, res, _, session)=>{
     try{
         await connection.task(async (task)=>{
             
             const email = req.body.email
             const password_hash = req.body.password_hash
 
-            const user = await User.findByEmail({email: email, password_hash: password_hash, connection: task})
+            const user = await User.findByEmail({email: email, password_hash: password_hash, session: session})
             
             if(user == null)
                 return res.status(HttpStatus.NOT_FOUND).send()
@@ -82,28 +87,32 @@ authRouter.put('/login', async (req, res)=>{
     
 })
 
-authRouter.put('/register', async(req, res)=>{
-    
-    try{
-        const new_user = await connection.tx(async (tx)=>{
-            const userData: Params.User.create = {
+authRouter.put('/register/', async(req, res)=>{
+     try{
+         
+         
+         const new_user = await connection.tx(async (session)=>{
+            const user_data: Params.User.create = {
                 email: req.body.email,
                 password_hash: req.body.password_hash,
+                role: Types.User.Role.normal,
                 username: req.body.username,
                 forename: req.body.forename,
                 surname: req.body.surname,
                 display_name: req.body.display_name,
-                transaction: tx
+                session: session
             }
-        
-            if(!checkForUndefined(userData))
+            
+            if(!checkForUndefined(user_data))
                 return res.status(HttpStatus.BAD_REQUEST).send()
             
-            return await User.create(userData)
-        })
+             return await User.create(user_data)
+         }) 
+        
 
-        res.json(new_user).status(HttpStatus.CREATED)
+        res.status(HttpStatus.CREATED).json(new_user)
     }catch(err: unknown){
+         console.log(err)
         if (err instanceof Exception)
             return res.status((err as Exception).responseStatus).send()
     }

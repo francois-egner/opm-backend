@@ -1,11 +1,8 @@
 import express from "express"
-import {connection} from "../../db"
-import { User } from "../Wrappers/User"
-import HttpStatus from 'http-status-codes'  
-import { Exception } from "../Utils/Exception"
 
 export const userRouter = express.Router()
 
+/*
 
 userRouter.get("/data/", async (req, res)=>{
     const user_id = req.auth.id
@@ -33,4 +30,4 @@ userRouter.delete("/",async (req, res)=>{
     }
     
     
-})
+})*/

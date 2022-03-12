@@ -1,4 +1,6 @@
-
+export function Sleep(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
 
 
 export const isValidB64 = (b64img: string) : boolean=>{
