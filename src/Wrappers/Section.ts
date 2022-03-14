@@ -5,6 +5,8 @@ import HttpStatus from 'http-status-codes'
 import {Element} from "./Element"
 import { Entry } from "./Entry"
 import { User } from "./User"
+import {ITask} from "pg-promise";
+import NumericComparison = Chai.NumericComparison;
 
 /**
  * Property names that may be changed by calling setProperty()
@@ -63,7 +65,7 @@ export class Section{
      * @param {ITask<never>} session - Associated session
      */
 
-    public static async create(name, entry_id, pos_index, session) : Promise<Section>{
+    public static async create(name: string, entry_id: number, pos_index: number, session: ITask<never>) : Promise<Section>{
         
         //TODO: Proper param validation
         if (!checkForUndefined({name})) 
@@ -91,7 +93,7 @@ export class Section{
         const queryData = [name, entry_id, pos_index]
         const sectionData = await session.one(sectionQueries.create, queryData)
 
-        return new Section(sectionData.m_id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
+        return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
         
     }
     
@@ -120,7 +122,7 @@ export class Section{
      * @param session - Associated session
      * @returns Section instance or null if no section with provided id was found
      */
-    public static async findById(id, session) : Promise<Section | null>{
+    public static async findById(id: number, session: ITask<never>) : Promise<Section | null>{
         try{
             const sectionData = await session.oneOrNone(sectionQueries.findById, [id])
             
@@ -128,7 +130,7 @@ export class Section{
                 return null
 
             const elements = await Section.getElements(id, false, session) as Element[]
-            return new Section(sectionData.m_id, sectionData.name, sectionData.pos_index, sectionData.entry_id, elements)
+            return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id, elements)
         }catch(err: unknown){
             throw new Exception("Failed to find section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -143,7 +145,7 @@ export class Section{
      * @param session
      * @returns Array of Element instances, ids of associated elements or null if no element was found
      */
-    public static async getElements(id, flat=true, session) : Promise<Element[] | number[] | null>{
+    public static async getElements(id: number, flat=true, session: ITask<never>) : Promise<Element[] | number[] | null>{
         const exists = await Section.exists(id,session)
         
         if(!exists)
@@ -157,7 +159,7 @@ export class Section{
                 return null
 
             for(const elementData of elementsData){
-                const newElement = flat ? elementData.m_id : new Element(elementData.m_id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
+                const newElement = flat ? elementData.id : new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
                 elements.push(newElement)
             }
 
@@ -175,7 +177,7 @@ export class Section{
      * @param session - Associated session
      */
 
-    public static async deleteById(id, session) : Promise<void>{
+    public static async deleteById(id: number, session: ITask<never>) : Promise<void>{
         const section = await Section.findById(id, session)
         if (section == null)
             throw new Exception("Failed to delete section. No section with provided id exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -205,7 +207,7 @@ export class Section{
      * @returns Section object or user id
      */
 
-    public static async getOwner(id, flat=true, session) : Promise<User|number>{
+    public static async getOwner(id: number, flat=true, session: ITask<never>) : Promise<User|number>{
         const section = await Section.findById(id, session)
 
         if(section == null)
@@ -226,7 +228,7 @@ export class Section{
      * @param session
      */
 
-    public static async addElement(id, element, pos_index, session) : Promise<void>{
+    public static async addElement(id: number, element: Element, pos_index: number, session: ITask<never>) : Promise<void>{
         //TODO: More parameter validation
         const section = await Section.findById(id, session)
 
@@ -243,25 +245,25 @@ export class Section{
         
         for (const el of section!.elements){
             if(el.pos_index >= pos_index!)
-                await Element.setProperty(el.m_id, "pos_index", el.pos_index+1, session)    
+                await Element.setProperty(el.id, "pos_index", el.pos_index+1, session)    
                     
         }
             
-        await  Element.setProperty(element.m_id, "section_id",id, session)
-        await Element.setProperty(element.m_id, "pos_index", pos_index!, session)
+        await  Element.setProperty(element.id, "section_id",id, session)
+        await Element.setProperty(element.id, "pos_index", pos_index!, session)
         
     }
 
     
 
     /**
-    * Removes an element from a section
-    * @param id Unique identifier of section an element should be removed from
-    * @param element_id Unique identifier of element to be removed from section
-    * @param del if true, the element will be deleted
-    * @param [transaction] Transaction object for querying
-    */
-    static async removeElement(id, element_id, del, session) : Promise<void>{
+     * Removes an element from a section
+     * @param id Unique identifier of section an element should be removed from
+     * @param element_id Unique identifier of element to be removed from section
+     * @param del if true, the element will be deleted
+     * @param session - Associated session
+     */
+    static async removeElement(id: number, element_id: number, del: boolean, session: ITask<never>) : Promise<void>{
         
         const elements = await Section.getElements(id, false, session) as Element[]
         const element_to_remove = await Element.findById(element_id,session)
@@ -269,14 +271,14 @@ export class Section{
         if(element_to_remove == null)
             throw new Exception("Unable to find Element with provided id!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        const found_element = elements.filter((element)=> element.m_id === element_id)
+        const found_element = elements.filter((element)=> element.id === element_id)
         if(found_element.length == 0)
             throw new Exception("Could not find element in given section!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         
         for(const element of elements){
             if(element.pos_index > element_to_remove.pos_index)
-                await Element.setProperty(element.m_id, "pos_index", element.pos_index-1, session)
+                await Element.setProperty(element.id, "pos_index", element.pos_index-1, session)
         }
 
         if(del)
@@ -286,13 +288,13 @@ export class Section{
 
 
     /**
-    * Repositions an element inside a section
-    * @param id Unique identifier of section
-    * @param element_id Unique identifier of associated element to be repositioned
-    * @param new_pos_index Position (index) the element should be moved to
-    * @param session - Associated session
-    */
-    public static async repositionElement(id, element_id, new_pos, session) : Promise<void>{
+     * Repositions an element inside a section
+     * @param id Unique identifier of section
+     * @param element_id Unique identifier of associated element to be repositioned
+     * @param new_pos - Index of new position
+     * @param session - Associated session
+     */
+    public static async repositionElement(id: number, element_id: number, new_pos: number, session: ITask<never>) : Promise<void>{
         const elements = await Section.getElements(id, false, session) as Element[]
         const element_to_reposition = await Element.findById(element_id, session)
 
@@ -306,10 +308,10 @@ export class Section{
         for (const element of elements){
             if(element_to_reposition.pos_index < new_pos){
                 if(element.pos_index > element_to_reposition.pos_index && element.pos_index <= new_pos)
-                    await Element.setProperty(element.m_id, "pos_index", element.pos_index-1, session)    
+                    await Element.setProperty(element.id, "pos_index", element.pos_index-1, session)    
             }else{
                 if(element.pos_index >= new_pos && element.pos_index < element_to_reposition.pos_index)
-                    await Element.setProperty(element.m_id, "pos_index", element.pos_index+1, session)     
+                    await Element.setProperty(element.id, "pos_index", element.pos_index+1, session)     
             }
         }
             
@@ -328,7 +330,7 @@ export class Section{
     * @param session - Associated session
     */
 
-    public static async moveElement(id, element_id, new_section_id, new_pos_index, session) : Promise<void>{
+    public static async moveElement(id: number, element_id: number, new_section_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
         const elements = await Section.getElements(id, false, session) as Element[]
         const element_to_move = await Element.findById(element_id, session)
 
@@ -339,7 +341,7 @@ export class Section{
         if(!exists)
             throw new Exception("Section to move element to does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        const found_element = elements.filter((element)=> element.m_id === element_id)
+        const found_element = elements.filter((element)=> element.id === element_id)
         if(found_element.length == 0)
                 throw new Exception("Element to be moved is not part of provided section!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
@@ -370,13 +372,13 @@ export class Section{
      * @param session
      */
 
-    public static async setProperty(id, property_name, new_value, session) : Promise<void>{
+    public static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
         const exists = await Entry.exists(id, session)
         if(!exists)
-            throw new Exception("Unable to find section to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
+            throw new Exception("Unable to find section to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
 

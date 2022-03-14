@@ -5,6 +5,7 @@ import HttpStatus from 'http-status-codes'
 import { Section } from './Section'
 import { Group } from "./Group"
 import { User } from "./User"
+import {ITask} from "pg-promise";
 
 /**
  * Property names that may be changed by calling setProperty()
@@ -75,7 +76,7 @@ export class Entry{
      * @returns Instance of the newly created entry
      */
 
-    public static async create(name, tags, icon, group_id, pos_index, session) : Promise<Entry>{
+    public static async create(name: string, tags: string[], icon: string, group_id: number, pos_index: number, session: ITask<never>) : Promise<Entry>{
         
         const group = await Group.findById(group_id, NULL, NULL, session)
 
@@ -98,7 +99,7 @@ export class Entry{
         const queryData = [name, tags, icon, group_id, pos_index]
         const entryData = await session.one(entryQueries.create, queryData)
 
-        return new Entry(entryData.m_id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
+        return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
         
     }
 
@@ -111,7 +112,7 @@ export class Entry{
      * @returns Instance of a found entry or null if no entry with provided id was found
      */
 
-    public static async findById(id, session) : Promise<Entry | null>{
+    public static async findById(id: number, session: ITask<never>) : Promise<Entry | null>{
         try{
             const entryData = await session.oneOrNone(entryQueries.findById, [id])
             if(entryData == null)
@@ -133,7 +134,7 @@ export class Entry{
      * @param session
      * @returns true if an entry with the provided id was found, else false
      */
-    public static async exists(id, session) : Promise<boolean>{
+    public static async exists(id: number, session: ITask<never>) : Promise<boolean>{
         
         try{
             const existsData = await session.one(entryQueries.exists, [id]);
@@ -152,7 +153,7 @@ export class Entry{
      * @param session
      * @returns Array of Entry instances, ids of associated entries or null if no entry was founds
      */
-    public static async getSections(id, flat=true, session) : Promise<Section[] | number[] | null>{
+    public static async getSections(id: number, flat=true, session: ITask<never>) : Promise<Section[] | number[] | null>{
         const exists = await Entry.exists(id, session)
         if(!exists) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -166,7 +167,7 @@ export class Entry{
 
             const sections: Section[] | number[] = []
             for (const section_data of sections_data){
-                sections.push(flat? section_data.m_id : await Section.findById(section_data.m_id, session))
+                sections.push(flat? section_data.id : await Section.findById(section_data.id, session))
             }
             
             return sections
@@ -184,7 +185,7 @@ export class Entry{
      * @param session
      */
 
-    public static async deleteById(id, session) : Promise<void>{
+    public static async deleteById(id: number, session: ITask<never>) : Promise<void>{
         const entry = await Entry.findById(id, session)
         if(entry == null) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -210,7 +211,7 @@ export class Entry{
      * @param session
      * @returns User object or user id
      */
-    public static async getOwner(id, flat=true, session) : Promise<User|number>{
+    public static async getOwner(id: number, flat=true, session: ITask<never>) : Promise<User|number>{
         const entry = await Entry.findById(id, session)
 
         if(entry == null)
@@ -222,13 +223,13 @@ export class Entry{
     //#region Section management
 
     /**
-     * Adds a section to an entry 
+     * Adds a section to an entry
      * @param id Unique identifier of entry to add a section to
      * @param section Section to be added to entry
      * @param pos_index Position (index) to place new section to
-     * @param [transaction] Transaction object for querying
-    */
-    public static async addSection(id, section, pos_index, session) : Promise<void>{
+     * @param session
+     */
+    public static async addSection(id: number, section: Section, pos_index: number, session: ITask<never>) : Promise<void>{
         const entry = await Entry.findById(id,session)
 
         if(entry == null)
@@ -261,7 +262,7 @@ export class Entry{
      * @param del if true, removed section will be deleted completly
      * @param session
      */
-    public static async removeSection(id, section_id, del, session) : Promise<void>{
+    public static async removeSection(id: number, section_id: number, del: boolean, session: ITask<never>) : Promise<void>{
         const sections = await Entry.getSections(id, false, session) as Section[]
         const section_to_remove = await Section.findById(section_id, session)
 
@@ -292,7 +293,7 @@ export class Entry{
      * @param new_pos_index Position (index) the section should be placed to
      * @param session
      */
-    public static async repositionSection(id, section_id, new_pos_index, session) : Promise<void>{
+    public static async repositionSection(id: number, section_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
         const sections = await Entry.getSections(id, false, session) as Section[]
         const section_to_reposition = await Section.findById(section_id, session)
 
@@ -326,7 +327,7 @@ export class Entry{
      * @param [new_pos_index] Position (index) the section should be placed to in the new entry. Default: Last position
      * @param session
      */
-    public static async moveSection(id, section_id, new_entry_id, new_pos_index, session) : Promise<void>{
+    public static async moveSection(id: number, section_id: number, new_entry_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
         const sections = await Entry.getSections(id, false, session) as Section[]
         const section_to_move = await Section.findById(section_id, session)
 
@@ -369,7 +370,7 @@ export class Entry{
      * @param new_value New value for provided property
      * @param session
      */
-    public static async setProperty(id, property_name, new_value, session) : Promise<void>{
+    public static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         

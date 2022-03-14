@@ -3,6 +3,7 @@ import {formatString, isValidB64, NULL} from "../Utils/Shared"
 import {userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
 import {Group} from "./Group"
+import {ITask} from "pg-promise";
 
 const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enabled", "profile_picture"]
 
@@ -67,7 +68,7 @@ export class User{
      * @returns Instance of newly created user
      */
 
-    static async create(email, username, password_hash, role, forename, surname, display_name, enabled=false, profile_picture, session): Promise<User>{
+    static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=false, profile_picture: string, session: ITask<never>): Promise<User>{
         if(await User.checkEmailExistence(email, session) || await User.checkUsernameExistence(username, session))
             throw new Exception("User with provided email or username already exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
@@ -92,7 +93,7 @@ export class User{
      * @param session
      * @returns User or null, if no user with provided id was found
      */
-    static async findById(id, session) : Promise<User|null>{
+    static async findById(id: number, session: ITask<never>) : Promise<User|null>{
         try{
             const userData = await session.oneOrNone(userQueries.findById, [id])
             if(userData == null)
@@ -113,7 +114,7 @@ export class User{
      * @param password_hash
      * @param session
      */
-    static async findByEmail(email, password_hash, session) : Promise<User|null>{
+    static async findByEmail(email: string, password_hash: string, session: ITask<never>) : Promise<User|null>{
         const user_id = await session.oneOrNone(userQueries.findByEmail, [email, password_hash])
         
         if(user_id == null)
@@ -127,7 +128,7 @@ export class User{
      * @param id
      * @param session
      */
-    static async getRole(id, session) : Promise<Types.User.Role>{
+    static async getRole(id: number, session: ITask<never>) : Promise<Types.User.Role>{
         return await User.getProperty(id, ["role"], session)
     }
 
@@ -137,7 +138,7 @@ export class User{
      * @param property_name
      * @param session
      */
-    static async getProperty(id, property_name, session) : Promise<any[] | any>{
+    static async getProperty(id: number, property_name: string[], session: ITask<never>) : Promise<any[] | any>{
         try{
 
             let properties = property_name[0]
@@ -160,7 +161,7 @@ export class User{
 
 
 
-    static async getAllData(id, session) : Promise<Group>{
+    static async getAllData(id: number, session: ITask<never>) : Promise<Group>{
         
         const root_id= await User.getProperty(id, ["root_id"],session)
 
@@ -173,7 +174,7 @@ export class User{
      * @param id Unique identifier of user to be deleted
      * @param session Transaction object for querying
      */
-    private static async deleteById_user(id, session) : Promise<void>{
+    private static async deleteById_user(id: number, session: ITask<never>) : Promise<void>{
         const user = await User.findById(id, session)
         if(user == null)
             throw new Exception("User to be deleted not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -189,7 +190,7 @@ export class User{
 
 
 
-    static async exists(id, session) : Promise<boolean>{
+    static async exists(id: number, session: ITask<never>) : Promise<boolean>{
         try{
             const existsData = await session.oneOrNone(userQueries.exists, [id])
             return existsData.exists
@@ -205,7 +206,7 @@ export class User{
      * @param email E-mail address to be checked for
      * @param session
      */
-    static async checkEmailExistence(email, session) : Promise<boolean>{
+    static async checkEmailExistence(email: string, session: ITask<never>) : Promise<boolean>{
         try{
             const queryData = [email]
             const existsData = await session.one(userQueries.checkEmailExistence, queryData)
@@ -223,7 +224,7 @@ export class User{
      * @param username Username to be checked for
      * @param session
      */
-    static async checkUsernameExistence(username, session) : Promise<boolean>{
+    static async checkUsernameExistence(username: string, session: ITask<never>) : Promise<boolean>{
         try{
             const queryData = [username]
             const existsData = await session.one(userQueries.checkUsernameExistence, queryData)
@@ -241,7 +242,7 @@ export class User{
      * @param id Unique identifier of user to be disabled
      * @param session Transaction for querying
     */
-    static async disable(id, session) : Promise<void>{
+    static async disable(id: number, session: ITask<never>) : Promise<void>{
         await User.setProperty(id, "enabled", false, session)
     }
 
@@ -252,12 +253,12 @@ export class User{
      * @param id Unique identifier user to be enabled
      * @param session Transaction for querying
     */
-    static async enable(id, session) : Promise<void>{
+    static async enable(id: number, session: ITask<never>) : Promise<void>{
         await User.setProperty(id, "enabled", true,session)
     }
 
 
-    static async changeProfilePicture(id, new_profile_picture, session) : Promise<void>{
+    static async changeProfilePicture(id: number, new_profile_picture: string, session: ITask<never>) : Promise<void>{
         const exists = await User.exists(id, session)
         
         if(!exists)
@@ -283,9 +284,9 @@ export class User{
      * @param id Unique identifier of entry to change a property from
      * @param property_name Name of property to change value of
      * @param new_value New value for provided property
-     * @param [transaction] Transaction object for querying
+     * @param session
      */
-    private static async setProperty(id, property_name, new_value, session) : Promise<void>{
+    private static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         

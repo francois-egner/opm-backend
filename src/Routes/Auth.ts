@@ -32,7 +32,7 @@ export async function auth(request: express.Request, response: express.Response,
         //Check for valid jwt
         try{
             const decoded_jwt:any = verify(jwt, configuration.express.jwt_secret)
-            request.auth = {id: decoded_jwt.m_id}
+            request.auth = {id: decoded_jwt.id}
         }catch(err: unknown){
             return response.status(HttpStatus.UNAUTHORIZED).send()
         }
