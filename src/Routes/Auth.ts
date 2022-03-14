@@ -4,7 +4,7 @@ import { connection } from "../../db";
 import { User } from "../Wrappers/User";
 import { configuration } from "../Utils/Configurator"
 import HttpStatus from 'http-status-codes'  
-import {checkForUndefined, hasNumber, Sleep} from "../Utils/Shared";
+import { hasNumber, NULL} from "../Utils/Shared";
 import { Exception } from "../Utils/Exception";
 
 
@@ -38,12 +38,12 @@ export async function auth(request: express.Request, response: express.Response,
         }
 
         //Check if user is enbaled
-        const user_enabled = await User.getProperty({id: request.auth.id, property_name:["enabled"], session: request.session})
+        const user_enabled = await User.getProperty(request.auth.id,["enabled"],request.session)
         if(!user_enabled)
             return response.status(HttpStatus.UNAUTHORIZED).send()
 
         //Check if role is allowed to use used route
-        const role = await User.getRole({id: request.auth.id, session: request.session})
+        const role = await User.getRole(request.auth.id, request.session)
         const requestPath = request.path.replace(/\/\d+/g, "/:id")
 
         //If still a number in requestPath, the id contained a non numeric character
@@ -62,14 +62,14 @@ export async function auth(request: express.Request, response: express.Response,
     
 }
 
-authRouter.put('/login/', async (req, res, _, session)=>{
+authRouter.put('/login/', async (req, res)=>{
     try{
-        await connection.task(async (task)=>{
+        await connection.task(async (session)=>{
             
             const email = req.body.email
             const password_hash = req.body.password_hash
 
-            const user = await User.findByEmail({email: email, password_hash: password_hash, session: session})
+            const user = await User.findByEmail(email,password_hash, session)
             
             if(user == null)
                 return res.status(HttpStatus.NOT_FOUND).send()
@@ -92,21 +92,18 @@ authRouter.put('/register/', async(req, res)=>{
          
          
          const new_user = await connection.tx(async (session)=>{
-            const user_data: Params.User.create = {
-                email: req.body.email,
-                password_hash: req.body.password_hash,
-                role: Types.User.Role.normal,
-                username: req.body.username,
-                forename: req.body.forename,
-                surname: req.body.surname,
-                display_name: req.body.display_name,
-                session: session
-            }
             
-            if(!checkForUndefined(user_data))
-                return res.status(HttpStatus.BAD_REQUEST).send()
+             const email =  req.body.email
+             const password_hash = req.body.password_hash
+             const role = Types.User.Role.normal
+             const username = req.body.username
+             const forename =  req.body.forename
+             const surname = req.body.surname
+             const display_name = req.body.display_name
+             const profile_picture = req.body.profile_picture
             
-             return await User.create(user_data)
+            
+             return await User.create(email, username, password_hash, role, forename, surname, display_name, NULL, profile_picture, session)
          }) 
         
 

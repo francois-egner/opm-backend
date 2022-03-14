@@ -1,7 +1,7 @@
 
 import { loadConfiguration } from "./Utils/Configurator";
 import {logger} from './Utils/Logger';
-import {connect, connection, disconnect} from '../db'
+import {connect, disconnect} from '../db'
 import { Exception } from "./Utils/Exception";
 import express from "express";
 import { configuration } from "./Utils/Configurator"
@@ -19,7 +19,6 @@ const unless = function(middleware, ...paths) {
 }
 
 const main = async ()=>{
-    
     try{
         loadConfiguration()
         

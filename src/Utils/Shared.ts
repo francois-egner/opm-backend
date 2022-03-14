@@ -1,3 +1,6 @@
+//Define new NULL constant for much more readable undefined parameters
+export const NULL = undefined
+
 export function Sleep(milliseconds) {
     return new Promise(resolve => setTimeout(resolve, milliseconds));
 }

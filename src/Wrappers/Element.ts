@@ -3,7 +3,7 @@ import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import { elementQueries } from "../../db"
 import { Section } from "./Section"
-import { formatString } from "../Utils/Shared"
+import {formatString, NULL} from "../Utils/Shared"
 import { User } from "./User"
 
 /**
@@ -77,9 +77,9 @@ export class Element{
      * @param pos_index - Index of position the new element should be place to in the associated section
      * @param session - Associated session
      */
-    public static async create({name, value, type, section_id, pos_index, session} : Params.Element.create): Promise<Element>{
+    public static async create(name, value, type, section_id, pos_index, session): Promise<Element>{
          
-        const section = await Section.findById({id: section_id, session: session})
+        const section = await Section.findById(section_id, session)
 
         if(section == null) 
             throw new Exception("Section to add element to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -96,7 +96,7 @@ export class Element{
         //Prepare section for insertion of new element
         for (const el of section!.elements){
             if(el.pos_index >= pos_index!)
-                await Element.setProperty({id: el.m_id, property_name:"pos_index", new_value: el.pos_index+1, session: session})    
+                await Element.setProperty(el.m_id, "pos_index", el.pos_index+1, session)    
         }
             
         //Create new element
@@ -114,7 +114,7 @@ export class Element{
     * @param session - Associated session
     * @returns Instance of a found element or null if no element with provided id was found
     */
-    public static async findById({id, session} : Params.Element.findById) : Promise<Element|null>{
+    public static async findById(id, session) : Promise<Element|null>{
         try{
             const queryData = [id]
             const elementData = await session.oneOrNone(elementQueries.findById, queryData)
@@ -135,7 +135,7 @@ export class Element{
      * @param session - Associated session
      * @returns true if an element with the provided id was found, else false
      */
-    public static async exists({id, session} : Params.Element.exists) : Promise<boolean>{
+    public static async exists(id, session) : Promise<boolean>{
         try{
             const existsData = await session.one(elementQueries.exists, [id])
             return existsData.exists
@@ -151,15 +151,15 @@ export class Element{
     * @param id - Unique identifier of element to be deleted
     * @param session - Associated session 
     */
-    public static async deleteById({id, session} : Params.Element.deleteById) : Promise <void>{
+    public static async deleteById(id, session) : Promise <void>{
         
-        const element = await Element.findById({id: id, session: session})
+        const element = await Element.findById(id, session)
         if(element == null)
             throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
 
-            await Section.removeElement({id: element.section_id, element_id: id, session: session})
+            await Section.removeElement(element.section_id, id, NULL, session)
             
             const queryData = [id]
             await session!.none(elementQueries.deleteById, queryData)
@@ -179,13 +179,13 @@ export class Element{
      * @param session - Associated session
      * @returns User object or user id
      */
-    public static async getOwner({id, flat=true, session} : Params.Element.getOwner) : Promise<User|number>{
-        const element = await Element.findById({id: id, session: session})
+    public static async getOwner(id, flat=true, session) : Promise<User|number>{
+        const element = await Element.findById(id, session)
 
         if(element == null)
             throw new Exception("No group with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        return await Section.getOwner({id: element.section_id, flat: flat, session: session})    
+        return await Section.getOwner(element.section_id, flat, session)    
     }
 
 
@@ -199,11 +199,11 @@ export class Element{
      * @param session - Associated session
      */
 
-    static async setProperty({id, property_name, new_value, session} : Params.setProperty) : Promise<void>{
+    static async setProperty(id, property_name, new_value, session) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const exists = await Element.exists({id: id, session: session})
+        const exists = await Element.exists(id, session)
         if(!exists)
             throw new Exception("Unable to find element to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
