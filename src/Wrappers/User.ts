@@ -87,16 +87,17 @@ export class User{
                     type: 'pkcs8',
                     format: 'pem'
                 }
-            });
+            })
+                        
             const root_group = await Group.create(`${username}_root`, NULL, NULL, NULL,true, session)
                             
-            const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now(), publicKey ]
+            const query_data = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now(), publicKey ]
             
-            const userData = await session.one(userQueries.create, queryData)
-            const user_data = new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), 
-                            userData.root_id, userData.profile_picture, new Date(userData.last_login), publicKey)
+            const user_data = await session.one(userQueries.create, query_data)
+            const user = new User(user_data.id, user_data.email, user_data.username, user_data.password_hash, user_data.role, user_data.forename, user_data.surname, user_data.display_name, user_data.enabled, new Date(user_data.creation_timestamp), 
+                            user_data.root_id, user_data.profile_picture, new Date(user_data.last_login), publicKey)
             return {
-                user_data,
+                user_data: user,
                 private_key: privateKey
             }
             
@@ -377,6 +378,10 @@ export class User{
 
     get last_login(): Date{
         return this._last_login
+    }
+    
+    get public_key(): string{
+        return this._public_key
     }
     //#endregion
 }

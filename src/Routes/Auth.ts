@@ -6,6 +6,7 @@ import { configuration } from "../Utils/Configurator"
 import HttpStatus from 'http-status-codes'  
 import { hasNumber, NULL} from "../Utils/Shared";
 import { Exception } from "../Utils/Exception";
+import crypto from "crypto"
 
 
 export const authRouter = express.Router()
@@ -37,7 +38,7 @@ export async function auth(request: express.Request, response: express.Response,
             return response.status(HttpStatus.UNAUTHORIZED).send()
         }
 
-        //Check if user is enbaled
+        //Check if user is enabled
         const user_enabled = await User.getProperty(request.auth.id,["enabled"],request.session)
         if(!user_enabled)
             return response.status(HttpStatus.UNAUTHORIZED).send()
@@ -67,13 +68,29 @@ authRouter.put('/login/', async (req, res)=>{
             
             const email = req.body.email
             const password_hash = req.body.password_hash
+            const signature = req.body.signature
 
             const user = await User.findByEmail(email,password_hash, session)
             
-            if(user == null)
+            
+            
+            if(user == null || signature === undefined)
                 return res.status(HttpStatus.NOT_FOUND).send()
             
             
+            //Check if user owns the associated private key (sign check)
+            const isVerified = crypto.verify("sha256",
+                Buffer.from(user.email),
+                {
+                    key: user.public_key,
+                    padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+                },
+                Buffer.from(signature))
+            
+            if (!isVerified)
+                return res.status(HttpStatus.UNAUTHORIZED).send()
+            
+            //Create Java Web Token for later authentication
             const jwt = sign({id: user.id, exp: Math.floor(Date.now() / 1000) + configuration.express.jwt_expiration_time * 60}, 
                               configuration.express.jwt_secret)
             

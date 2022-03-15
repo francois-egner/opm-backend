@@ -7,7 +7,8 @@ import {} from 'mocha'
 import {User} from '../src/Wrappers/User'
 import {connection, connect, disconnect} from "../db"
 import { server } from "../src"
-import jwt_decode  from 'jwt-decode'    
+import jwt_decode  from 'jwt-decode'
+import crypto from "crypto"
 
 chai.use(chaiHttp)
 
@@ -28,7 +29,8 @@ const user = {
     forename: `${makePassword()}`,
     surname: `${makePassword()}`,
     display_name: `${makePassword()}`,
-    username: `${makePassword()}`
+    username: `${makePassword()}`,
+    private_key: undefined
 }
 
 
@@ -48,6 +50,7 @@ describe("User", async function(){
         .end((err, res)=>{
             res.should.have.status(HttpStatus.CREATED)
             res.body.should.have.property("private_key")
+            user.private_key = res.body.private_key
             res.body.should.have.property("user_data")
             console.log(res.body.user_data)
             res.body.user_data.should.have.property('_id').eql(1)
@@ -62,7 +65,16 @@ describe("User", async function(){
     })
     
     it("should login the user", function(done){
-        chai.request(server).put("/auth/login/", ).send({email:user.email, password_hash: user.password_hash})
+        const login_data = {
+            email:user.email, 
+            password_hash: user.password_hash,
+            signature: crypto.sign("sha256", Buffer.from(`${user.email}`), {
+                key: user.private_key,
+                padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+            })
+        }
+        console.log(login_data)
+        chai.request(server).put("/auth/login/", ).send(login_data)
             .end((err, res)=>{
                 res.should.have.status(HttpStatus.OK)
                 res.body.should.have.property('jwt')
