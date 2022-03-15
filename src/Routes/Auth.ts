@@ -56,7 +56,6 @@ export async function auth(request: express.Request, response: express.Response,
 
 
         next(request,response, next, request.session)
-        console.log("End!")
     
     
     
@@ -89,8 +88,6 @@ authRouter.put('/login/', async (req, res)=>{
 
 authRouter.put('/register/', async(req, res)=>{
      try{
-         
-         
          const new_user = await connection.tx(async (session)=>{
             
              const email =  req.body.email
@@ -101,7 +98,7 @@ authRouter.put('/register/', async(req, res)=>{
              const surname = req.body.surname
              const display_name = req.body.display_name
              const profile_picture = req.body.profile_picture
-            
+             
             
              return await User.create(email, username, password_hash, role, forename, surname, display_name, NULL, profile_picture, session)
          }) 

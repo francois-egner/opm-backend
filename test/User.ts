@@ -7,6 +7,7 @@ import {} from 'mocha'
 import {User} from '../src/Wrappers/User'
 import {connection, connect, disconnect} from "../db"
 import { server } from "../src"
+import jwt_decode  from 'jwt-decode'    
 
 chai.use(chaiHttp)
 
@@ -46,14 +47,39 @@ describe("User", async function(){
         chai.request(server).put("/auth/register/", ).send(user)
         .end((err, res)=>{
             res.should.have.status(HttpStatus.CREATED)
-            res.body.should.have.property('_id').eql(1)
-            res.body.should.have.property('_email').eql(user.email)
-            res.body.should.have.property('_password_hash').eql(user.password_hash)
-            res.body.should.have.property('_forename').eql(user.forename)
-            res.body.should.have.property('_surname').eql(user.surname)
-            res.body.should.have.property('_display_name').eql(user.display_name)
-            res.body.should.have.property('_role').eql(user.role)
+            res.body.should.have.property("private_key")
+            res.body.should.have.property("user_data")
+            console.log(res.body.user_data)
+            res.body.user_data.should.have.property('_id').eql(1)
+            res.body.user_data.should.have.property('_email').eql(user.email)
+            res.body.user_data.should.have.property('_password_hash').eql(user.password_hash)
+            res.body.user_data.should.have.property('_forename').eql(user.forename)
+            res.body.user_data.should.have.property('_surname').eql(user.surname)
+            res.body.user_data.should.have.property('_display_name').eql(user.display_name)
+            res.body.user_data.should.have.property('_role').eql(user.role)
             done()
         })
+    })
+    
+    it("should login the user", function(done){
+        chai.request(server).put("/auth/login/", ).send({email:user.email, password_hash: user.password_hash})
+            .end((err, res)=>{
+                res.should.have.status(HttpStatus.OK)
+                res.body.should.have.property('jwt')
+                
+                const jwt_regex = /^([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_\-\\/=]*)/
+                const jwt = res.body.jwt
+                if(!jwt_regex.test(jwt))
+                    throw new Error("Response does not contain a valid Java Web Token!")
+                
+                const decoded_jwt = jwt_decode(jwt)
+                decoded_jwt.should.have.property('id')
+                decoded_jwt.should.have.property('exp')
+                decoded_jwt.should.have.property('iat')
+                
+                
+                
+                done()
+            })
     })
 })

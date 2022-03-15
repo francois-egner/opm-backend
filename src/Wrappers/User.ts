@@ -4,6 +4,7 @@ import {userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
 import {Group} from "./Group"
 import {ITask} from "pg-promise";
+import crypto from "crypto"
 
 const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enabled", "profile_picture"]
 
@@ -34,10 +35,12 @@ export class User{
     private readonly _profile_picture: string
 
     private readonly _last_login: Date
+    
+    private readonly _public_key: string
 
 
     constructor(id: number, email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled: boolean,
-        creation_date: Date, root_id: number, profile_picture: string, last_login: Date){
+        creation_date: Date, root_id: number, profile_picture: string, last_login: Date, public_key: string){
         this._id = id
         this._email = email
         this._password_hash = password_hash
@@ -51,6 +54,7 @@ export class User{
         this._username = username
         this._enabled = enabled
         this._last_login = last_login
+        this._public_key = public_key
     }
 
     /**
@@ -68,18 +72,33 @@ export class User{
      * @returns Instance of newly created user
      */
 
-    static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=false, profile_picture: string, session: ITask<never>): Promise<User>{
+    static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=false, profile_picture: string, session: ITask<never>): Promise<any>{
         if(await User.checkEmailExistence(email, session) || await User.checkUsernameExistence(username, session))
             throw new Exception("User with provided email or username already exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
+            const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+                modulusLength: 2048,
+                publicKeyEncoding: {
+                    type: 'spki',
+                    format: 'pem'
+                },
+                privateKeyEncoding: {
+                    type: 'pkcs8',
+                    format: 'pem'
+                }
+            });
             const root_group = await Group.create(`${username}_root`, NULL, NULL, NULL,true, session)
                             
-            const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now() ]
+            const queryData = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now(), publicKey ]
             
             const userData = await session.one(userQueries.create, queryData)
-            return new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), 
-                            userData.root_id, userData.profile_picture, new Date(userData.last_login))
+            const user_data = new User(userData.id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname, userData.display_name, userData.enabled, new Date(userData.creation_timestamp), 
+                            userData.root_id, userData.profile_picture, new Date(userData.last_login), publicKey)
+            return {
+                user_data,
+                private_key: privateKey
+            }
             
         }catch(err: unknown){
             throw new Exception("Failed to create new user", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -101,7 +120,7 @@ export class User{
             
                   
             return new User(id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname,
-                userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture, new Date(userData.last_login))
+                userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture, new Date(userData.last_login), userData.public_key)
         
         }catch(err: unknown){
             throw new Exception("Failed to find user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)

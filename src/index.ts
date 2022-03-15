@@ -6,8 +6,6 @@ import { Exception } from "./Utils/Exception";
 import express from "express";
 import { configuration } from "./Utils/Configurator"
 import { auth, authRouter } from "./Routes/Auth"
-import { groupRouter } from "./Routes/Group"
-import { userRouter } from "./Routes/User"
 
 export const server = express()
 
@@ -28,8 +26,6 @@ const main = async ()=>{
         server.use(unless(auth, "/auth/login/", "/auth/register/"))
         
         server.use("/auth", authRouter)
-        server.use("/group", groupRouter)
-        server.use("/user", userRouter)
         
         
         server.listen(configuration.express.port,()=>{
