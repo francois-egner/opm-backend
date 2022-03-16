@@ -1,10 +1,11 @@
 
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
-import { connect, connection as conn, elementQueries } from "../../db"
-import { Section } from "../Wrappers/Section"
-import { formatString } from "../Utils/Shared"
+import { elementQueries } from "../../db"
+import { Section } from "./Section"
+import {formatString, NULL} from "../Utils/Shared"
 import { User } from "./User"
+import {ITask} from "pg-promise";
 
 /**
  * Property names that may be changed by calling setProperty()
@@ -26,38 +27,38 @@ export class Element{
     /**
      * Name of element
      */
-    private _name: string
+    private readonly _name: string
 
     /**
      * Position (index) of element inside of the associated section
      */
-    private _pos_index: number
+    private readonly _pos_index: number
 
     /**
      * Unique identifier of section the element is part of
      */
-    private _section_id: number
+    private readonly _section_id: number
 
     /**
      * Value of element
      */
-    private _value: string
+    private readonly _value: any
 
     /**
      * Type of element (e.g. password, cleartext, binary file etc.)
      */
-    private _type: Types.Element.ElementType
+    private readonly _type: Types.Element.ElementType
 
 
     /**
-    * @param id Unique identifier of element
-    * @param name Name of element
-    * @param value Actual value of element
-    * @param type Type of element (e.g. password, cleartext, binary file etc.)
-    * @param pos_index Position (index) of element in section
-    * @param section_id Unique identifier of section the element is part of
+    * @param id - Unique identifier of element
+    * @param name - Name of element
+    * @param value - Actual value of element
+    * @param type - Type of element (e.g. password, cleartext, binary file etc.)
+    * @param pos_index - Position (index) of element inside of the associated section
+    * @param section_id - Unique identifier of section the element is part of
     */
-    constructor(id: number, name: string, value: string, type: Types.Element.ElementType, pos_index: number, section_id: number){
+    constructor(id: number, name: string, value: any, type: Types.Element.ElementType, pos_index: number, section_id: number){
         this._name = name
         this._value = value
         this._type = type
@@ -69,21 +70,17 @@ export class Element{
 
     
     /**
-    * Creates a new element
-    * @param name Name of new element
-    * @param value Value/data of the element (e.g. actual password, binary data etc.)
-    * @param type Type of element (e.g. password, cleartext, binary file etc.)
-    * @param [transaction] Transaction object for querying
-    */
-    static async create({name, value, type, section_id, pos_index, transaction} : Params.Element.create): Promise<Element>{
-        return transaction
-        ? await Element.create_private({name: name, value: value, type: type, section_id: section_id, pos_index: pos_index, transaction: transaction})
-        : await conn.tx(async (tx)=>{return await Element.create_private({name: name, value: value, type: type, section_id: section_id, pos_index: pos_index, transaction: tx})})
-    }
-
-    private static async create_private({name, value, type, section_id, pos_index, transaction} : Params.Element.create): Promise<Element>{
+     * Creates a new element
+     * @param name Name of the new element
+     * @param value Value/data of the element (e.g. actual password, binary data etc.)
+     * @param type Type of the new element (e.g. password, cleartext, binary file etc.)
+     * @param section_id - Unique identifier of section to add the element to
+     * @param pos_index - Index of position the new element should be place to in the associated section
+     * @param session - Associated session
+     */
+    public static async create(name: string, value: any, type: Types.Element.ElementType, section_id: number, pos_index: number, session: ITask<never>): Promise<Element>{
          
-        const section = await Section.findById({id: section_id, connection: transaction})
+        const section = await Section.findById(section_id, session)
 
         if(section == null) 
             throw new Exception("Section to add element to was not found!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -100,12 +97,12 @@ export class Element{
         //Prepare section for insertion of new element
         for (const el of section!.elements){
             if(el.pos_index >= pos_index!)
-                await Element.setProperty({id: el.id, property_name:"pos_index", new_value: el.pos_index+1, connection: transaction})    
+                await Element.setProperty(el.id, "pos_index", el.pos_index+1, session)    
         }
             
         //Create new element
         const queryData = [name, value, type, section_id, pos_index]
-        const elementData = await transaction.one(elementQueries.create, queryData)
+        const elementData = await session.one(elementQueries.create, queryData)
 
         return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
     }
@@ -115,13 +112,13 @@ export class Element{
     /**
     * Tries to fetch element data of the element with the provided id
     * @param id Unique identifier of element to be returned
-    * @param [connection] Task or Transaction object for querying
+    * @param session - Associated session
     * @returns Instance of a found element or null if no element with provided id was found
     */
-    static async findById({id, connection=conn} : Params.Element.findById) : Promise<Element|null>{
+    public static async findById(id: number, session: ITask<never>) : Promise<Element|null>{
         try{
             const queryData = [id]
-            const elementData = await connection.oneOrNone(elementQueries.findById, queryData)
+            const elementData = await session.oneOrNone(elementQueries.findById, queryData)
             if(elementData == null)
                 return null
 
@@ -134,13 +131,14 @@ export class Element{
 
 
     /**
-    * Checks if an element with provided id does exist
-    * @param id Unique identifier of element to check existence for
-    * @returns true if an element with the provided id was found, else false
-    */
-    static async exists({id, connection=conn} : Params.Element.exists) : Promise<boolean>{
+     * Checks if an element with provided id does exist
+     * @param id - Unique identifier of element to check existence for
+     * @param session - Associated session
+     * @returns true if an element with the provided id was found, else false
+     */
+    public static async exists(id: number, session: ITask<never>) : Promise<boolean>{
         try{
-            const existsData = await connection.one(elementQueries.exists, [id])
+            const existsData = await session.one(elementQueries.exists, [id])
             return existsData.exists
         }catch(err: unknown){
             throw new Exception("Failed to check for existence", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -151,27 +149,21 @@ export class Element{
 
     /**
     * Deletes the element with provided id
-    * @param id Unique identifier of element to be deleted
-    * @param [transaction] Transaction object for querying 
+    * @param id - Unique identifier of element to be deleted
+    * @param session - Associated session 
     */
-    static async deleteById({id, transaction} : Params.Element.deleteById) : Promise <void>{
-       return transaction
-       ? await Element.deleteById_private({id: id, transaction: transaction})
-       : await conn.tx(async (tx)=>{return await Element.deleteById_private({id: id, transaction: tx})})
-    }
-
-    private static async deleteById_private({id, transaction} : Params.Element.deleteById) : Promise <void>{
+    public static async deleteById(id: number, session: ITask<never>) : Promise <void>{
         
-        const element = await Element.findById({id: id, connection: transaction})
+        const element = await Element.findById(id, session)
         if(element == null)
             throw new Exception("Element to deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
         try{
 
-            await Section.removeElement({id: element.section_id, element_id: id, transaction: transaction})
+            await Section.removeElement(element.section_id, id, NULL, session)
             
             const queryData = [id]
-            await transaction!.none(elementQueries.deleteById, queryData)
+            await session!.none(elementQueries.deleteById, queryData)
             
             
         }catch(err: unknown){
@@ -182,24 +174,19 @@ export class Element{
 
 
     /**
-     * Fetches the id or full objecct of user that owns the group
-     * @param id Unique identifier of group to get owner of
-     * @param [flat] If true, only id will be returned
+     * Fetches the id or full object of user that owns the group
+     * @param id - Unique identifier of group to get owner of
+     * @param [flat] - If true, only id will be returned. Defaults to true
+     * @param session - Associated session
      * @returns User object or user id
-    */
-    static async getOwner({id, flat=true, connection} : Params.Element.getOwner) : Promise<User|number>{
-        return connection
-        ? await Element.getOwner_private({id: id, flat: flat, connection: connection})
-        : await conn.task(async (task)=>{return await Element.getOwner_private({id: id, flat: flat, connection: task})})
-    }
-
-    private static async getOwner_private({id, flat=true, connection} : Params.Element.getOwner) : Promise<User|number>{
-        const element = await Element.findById({id: id, connection: connection})
+     */
+    public static async getOwner(id: number, flat=true, session: ITask<never>) : Promise<User|number>{
+        const element = await Element.findById(id, session)
 
         if(element == null)
             throw new Exception("No group with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
-        return await Section.getOwner({id: element.section_id, flat: flat, connection: connection})    
+        return await Section.getOwner(element.section_id, flat, session)    
     }
 
 
@@ -207,22 +194,17 @@ export class Element{
     
     /**
      * Sets a new value for a object specific property.
-     * @param id Unique identifier of section to change a property from
-     * @param property_name Name of property to change value of
-     * @param new_value New value for provided property
-     * @param [transaction] Transaction object for querying
+     * @param id - Unique identifier of section to change a property from
+     * @param property_name - Name of property to change value of
+     * @param new_value - New value for provided property
+     * @param session - Associated session
      */
-    static async setProperty({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
-        return connection
-        ? await Element.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: connection})
-        : await conn.tx(async (tx)=>{return await Element.setProperty_private({id: id, property_name: property_name, new_value: new_value, connection: tx})})
-    }
 
-    private static async setProperty_private({id, property_name, new_value, connection} : Params.setProperty) : Promise<void>{
+    static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
-        const exists = await Element.exists({id: id, connection: connection})
+        const exists = await Element.exists(id, session)
         if(!exists)
             throw new Exception("Unable to find element to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
@@ -230,7 +212,7 @@ export class Element{
             const queryString = formatString(elementQueries.setProperty as string, property_name)
             const queryData = [id,  new_value]
 
-            await connection.none(queryString, queryData)
+            await session.none(queryString, queryData)
         }catch(err: unknown){
             throw new Exception("Failed to change property of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -245,7 +227,7 @@ export class Element{
         return this._name
     }
 
-    get value(): string{
+    get value(): any{
         return this._value
     }
 

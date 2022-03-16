@@ -27,14 +27,14 @@ export async function connect(): Promise<void>{
         max: 10
         
     });
-  
+    
     connected = true
     connection = db
 }
 
 export async function disconnect(): Promise<void>{
     if(connected){
-        connection.$pool.end()
+        await connection.$pool.end()
         connected = false
     }
 }
@@ -42,10 +42,14 @@ export async function disconnect(): Promise<void>{
 export const userQueries = {
     create: loadSQL("/User/create.sql"),
     findById: loadSQL("/User/findById.sql"),
+    findByEmail: loadSQL("/User/findByEmail.sql"),
     checkEmailExistence: loadSQL("/User/checkEmailExistence.sql"),
-    checkUsernamExistence: loadSQL("/User/checkUsernameExistence.sql"),
+    checkUsernameExistence: loadSQL("/User/checkUsernameExistence.sql"),
     exists: loadSQL("/User/exists.sql"),
-    setProperty: loadSQL("/User/setProperty.sql")
+    setProperty: loadSQL("/User/setProperty.sql"),
+    getProperty: loadSQL("/User/getProperty.sql"),
+    getOwn: loadSQL("/User/getOwn.sql")
+
 }
 
 export const sectionQueries = {
@@ -88,7 +92,8 @@ export const groupQueries = {
     findById: loadSQL("/Group/findById.sql"),
     deleteById: loadSQL("/Group/deleteById.sql"),
     setProperty: loadSQL("/Group/setProperty.sql"),
-    getOwner: loadSQL("/Group/getOwner.sql")
+    getOwner: loadSQL("/Group/getOwner.sql"),
+    getProperty: loadSQL("/Group/getProperty.sql")
 }
 
 

@@ -1,0 +1,1 @@
+SELECT {0} FROM "Category".groups WHERE id=$1;
