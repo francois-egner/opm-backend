@@ -4,6 +4,7 @@ import {User} from "../Wrappers/User";
 import {logger} from "../Utils/Logger";
 import HttpStatus from 'http-status-codes'
 import {Group} from "../Wrappers/Group";
+import {NULL} from "../Utils/Shared";
 
 export const groupRouter = express.Router()
 
@@ -37,3 +38,31 @@ groupRouter.get("/", async (req, res)=>{
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()
     }
 })
+
+groupRouter.delete("/:id", async (req, res)=>{
+    try{
+        await connection.tx(async (session)=>{
+            const group_id = Number(req.params.id)
+            const group = await Group.findById(group_id, NULL, NULL, session)
+            if(group == null)
+                return res.status(HttpStatus.NOT_FOUND).send()
+            
+            const owner_id = await Group.getOwner(group_id, NULL, session)
+            if(owner_id !== req.auth.id)
+                return res.status(HttpStatus.FORBIDDEN).send()
+            
+            const root_id = await User.getProperty(req.auth.id, ["root_id"], session)
+            
+            if(root_id === group_id)
+                return res.status(HttpStatus.FORBIDDEN).send()
+            
+            await Group.deleteById(group_id,session)
+            
+            res.status(HttpStatus.OK).send()
+        })
+    }catch(err: unknown){
+        logger.error(JSON.stringify(err))
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()
+    }
+})
+

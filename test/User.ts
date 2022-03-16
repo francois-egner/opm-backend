@@ -35,6 +35,8 @@ const user = {
     root_id: undefined
 }
 
+let custom_group_id = 0
+
 
 
 before(async function() {
@@ -126,9 +128,10 @@ describe("User", async function(){
         }
         chai.request(server).put("/groups/").auth(user.jwt, { type: 'bearer' }).send(group_data)
             .end((err, res)=>{
-                console.log(res.body)
+                
                 res.body.should.have.property("_id")
                 res.body._id.should.be.a("number")
+                custom_group_id = res.body._id
                 
                 res.body.should.have.property("_entries")
                 res.body._entries.should.be.an("array")
@@ -147,6 +150,7 @@ describe("User", async function(){
                 
                 res.body.should.have.property("_supergroup_id")
                 res.body._supergroup_id.should.be.a("number")
+                res.body._supergroup_id.should.eql(user.root_id)
                 
                 done()
                 
@@ -155,11 +159,17 @@ describe("User", async function(){
     
     it("should return all groups", function(done){
        chai.request(server).get("/groups/").auth(user.jwt, { type: 'bearer' }).send()
-            .end((err, res)=>{
-                console.log(res.body)
-                
+            .end((err, res)=>{                
                 done()
 
             })
+    })
+    
+    it("should delete the previously created custom group", function(done){
+        chai.request(server).delete(`/groups/${custom_group_id}`).auth(user.jwt, { type: 'bearer' }).send()
+            .end((err, res)=>{
+                res.should.have.status(HttpStatus.OK)
+                done()
+             })
     })
 })
