@@ -3,7 +3,7 @@ import {formatString, isValidB64, NULL} from "../Utils/Shared"
 import {userQueries} from "../../db"
 import HttpStatus from 'http-status-codes'
 import {Group} from "./Group"
-import {ITask} from "pg-promise";
+import {IDatabase, ITask} from "pg-promise";
 import crypto from "crypto"
 
 const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enabled", "profile_picture"]
@@ -72,7 +72,7 @@ export class User{
      * @returns Instance of newly created user
      */
 
-    static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=false, profile_picture: string, session: ITask<never>): Promise<any>{
+    static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=true, profile_picture: string, session: ITask<never>): Promise<any>{
         if(await User.checkEmailExistence(email, session) || await User.checkUsernameExistence(username, session))
             throw new Exception("User with provided email or username already exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
 
@@ -106,6 +106,14 @@ export class User{
         }  
     }
     
+    static async getOwn(id: number, session: ITask<never>): Promise<Types.User.OwnUser | null>{
+        try{
+            return await session.oneOrNone(userQueries.getOwn, [id])
+
+        }catch(err: unknown){
+            throw new Exception("Failed to fetch user data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }
 
     /**
      * Fetches user data
@@ -148,7 +156,7 @@ export class User{
      * @param id
      * @param session
      */
-    static async getRole(id: number, session: ITask<never>) : Promise<Types.User.Role>{
+    static async getRole(id: number, session: ITask<never> | IDatabase<any>) : Promise<Types.User.Role>{
         return await User.getProperty(id, ["role"], session)
     }
 
@@ -158,7 +166,7 @@ export class User{
      * @param property_name
      * @param session
      */
-    static async getProperty(id: number, property_name: string[], session: ITask<never>) : Promise<any[] | any>{
+    static async getProperty(id: number, property_name: string[], session: ITask<never> | IDatabase<any>) : Promise<any[] | any>{
         try{
 
             let properties = property_name[0]

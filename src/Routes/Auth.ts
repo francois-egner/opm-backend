@@ -12,12 +12,12 @@ import crypto from "crypto"
 export const authRouter = express.Router()
 
 const privMatrix = {
-    "/group/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PUT","GET"]},
-    "/group/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETE"]},
-    "/group/move/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PATCH"]},
-    "/group/entries/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["GET"]},
-    "/user/data/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["GET"]},
-    "/user/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETE"]}
+    "/groups/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PUT","GET"]},
+    "/groups/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETE"]},
+    "/groups/move/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["PATCH"]},
+    "/groups/entries/:id" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["GET"]},
+    "/users/data/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["GET"]},
+    "/users/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETE"]}
 }
 
 export async function auth(request: express.Request, response: express.Response, next) {
@@ -29,34 +29,35 @@ export async function auth(request: express.Request, response: express.Response,
 
 
         const jwt = bearer_header.substring(7, bearer_header.length)
-
+       
         //Check for valid jwt
         try{
             const decoded_jwt:any = verify(jwt, configuration.express.jwt_secret)
             request.auth = {id: decoded_jwt.id}
+                        
         }catch(err: unknown){
             return response.status(HttpStatus.UNAUTHORIZED).send()
         }
 
         //Check if user is enabled
-        const user_enabled = await User.getProperty(request.auth.id,["enabled"],request.session)
+        const user_enabled = await User.getProperty(request.auth.id,["enabled"], connection)
         if(!user_enabled)
             return response.status(HttpStatus.UNAUTHORIZED).send()
-
+        
         //Check if role is allowed to use used route
-        const role = await User.getRole(request.auth.id, request.session)
+        const role = await User.getRole(request.auth.id, connection)
         const requestPath = request.path.replace(/\/\d+/g, "/:id")
-
+        
         //If still a number in requestPath, the id contained a non numeric character
         if(hasNumber(requestPath))
             return response.status(HttpStatus.BAD_REQUEST).send()
-
+        
         //Check if user role may use the taken route
         if(!privMatrix[requestPath].roles.includes(role))
             return response.status(HttpStatus.UNAUTHORIZED).send()
 
-
-        next(request,response, next, request.session)
+        
+        next()
     
     
     
@@ -94,10 +95,11 @@ authRouter.put('/login/', async (req, res)=>{
             const jwt = sign({id: user.id, exp: Math.floor(Date.now() / 1000) + configuration.express.jwt_expiration_time * 60}, 
                               configuration.express.jwt_secret)
             
-            res.json({jwt: jwt})
+            res.json({jwt: jwt}).send()
             
         })
     }catch(err: unknown){
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()
         console.log(err)
     }
     
