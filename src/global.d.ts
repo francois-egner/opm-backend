@@ -8,7 +8,7 @@ declare global {
      */
     namespace Types{
         
-        
+       
         
         /**
         * Types of exception
@@ -39,6 +39,18 @@ declare global {
             export const enum Role{
                 normal = 0,
                 admin = 1
+            }
+            
+            interface OwnUser{
+                id: number,
+                email: string,
+                role: Types.User.Role,
+                forename: string,
+                surname: string,
+                display_name: string,
+                enabled: boolean,
+                root_id: number,
+                profile_picture: string
             }
 
         }

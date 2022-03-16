@@ -9,7 +9,7 @@ export class Exception{
     /**
      * The type of exception (see ExceptionType)
      */
-    private _type: Types.ExceptionType;
+    private readonly _type: Types.ExceptionType;
     /**
      * Information about the exact line of code that caused the internal exception
      */
@@ -17,27 +17,28 @@ export class Exception{
     /**
      * The status of the response to be sent after the Exception was thrown
      */
-    private _responseStatus: number
+    private readonly _responseStatus: number
     /**
      * The message to be logged that describes the cause of the exception
      */
-    private _message: string
+    private readonly _message: string
 
     /**
      * The error the exception will encapsulate. This additional information is useful for proper logging
      */
-    private _error: Error|undefined
+    private readonly _error: Error|undefined
 
     /**
      * Constructor
      * @param {string} message - The message to be logged
      * @param {ExceptionType} type - The type of exception
-     * @param {number} reponseStatus - The status of the response to be send to the requester
+     * @param {number} responseStatus - The status of the response to be send to the requester
+     * @param error
      */
-    constructor(message: string, type: Types.ExceptionType = Types.ExceptionType.RuntimeError, reponseStatus: number = HttpStatus.INTERNAL_SERVER_ERROR, error?: Error){
+    constructor(message: string, type: Types.ExceptionType = Types.ExceptionType.RuntimeError, responseStatus: number = HttpStatus.INTERNAL_SERVER_ERROR, error?: Error){
         this._type = type
         this._code = this.codeInfo()
-        this._responseStatus = reponseStatus
+        this._responseStatus = responseStatus
         this._message = message
         this._error = error
 
