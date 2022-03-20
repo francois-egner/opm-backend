@@ -9,6 +9,7 @@ import {connection, connect, disconnect} from "../db"
 import { server } from "../src"
 import jwt_decode  from 'jwt-decode'
 import crypto from "crypto"
+import {Sleep} from "../src/Utils/Shared";
 
 chai.use(chaiHttp)
 
@@ -54,6 +55,7 @@ after(async function(){
 })
 
 describe("User", async function(){
+    
     it("should create a new normal user", function(done){
         chai.request(server).put("/auth/register/", ).send(user)
         .end((err, res)=>{
@@ -124,9 +126,10 @@ describe("User", async function(){
             })
     })
     
-    it("should create the first custom group", function(done){
+    it(`should create custom group`, function(done){
+        
         const group_data = {
-            name: "Servers",
+            name: `Servers`,
             supergroup_id: user.root_id,
             icon: "test"
             
@@ -161,7 +164,7 @@ describe("User", async function(){
                 
             })
     })
-    
+        
     it("should return all groups", function(done){
        chai.request(server).get("/groups/").auth(user.jwt, { type: 'bearer' }).send()
             .end((err, res)=>{                
@@ -177,4 +180,23 @@ describe("User", async function(){
                 done()
              })
     })
+
+    
+    
+    
+    
+    it("should delete the user", async function(){
+        const group_data = {
+            name: `Servers`,
+            supergroup_id: user.root_id,
+            icon: "test"
+
+        }
+        for(let i = 0; i<100; i++){
+            const res = await chai.request(server).put("/groups/").auth(user.jwt, { type: 'bearer' }).send(group_data)
+        }
+            console.time("Deletion time")
+        await chai.request(server).delete(`/users/`).auth(user.jwt, { type: 'bearer' }).send()
+            console.timeEnd("Deletion time")
+    }).timeout(30000)
 })

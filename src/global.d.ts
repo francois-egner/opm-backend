@@ -87,8 +87,10 @@ declare global {
               jwt_expiration_time: number
             },
             general:{
-              sqlPath: string,
-              max_group_name_length: number
+                sqlPath: string,
+                max_group_name_length: number, 
+                transaction_timeout: number,
+                transaction_maxWait: number
             }
         }
     }

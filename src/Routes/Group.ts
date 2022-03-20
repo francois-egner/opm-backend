@@ -6,6 +6,7 @@ import HttpStatus from 'http-status-codes'
 import {Group} from "../Wrappers/Group";
 import {NULL} from "../Utils/Shared";
 import {CustomRequest} from "../index";
+import {configuration} from "../Utils/Configurator";
 
 export const groupRouter = express.Router()
 
@@ -20,7 +21,11 @@ groupRouter.put("/", async (req: CustomRequest, res)=>{
             
             const group = await Group.create(name, icon, supergroup_id, pos_index, root, session)
             res.json(group).status(HttpStatus.CREATED).send()
-        })
+        },
+            {
+                maxWait: configuration.general.transaction_maxWait,
+                timeout: configuration.general.transaction_timeout,
+            })
     }catch(err: unknown){
         console.log(err)
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()
@@ -33,7 +38,11 @@ groupRouter.get("/", async (req: CustomRequest, res)=>{
             const root_id = await User.getProperty(req.auth.id, ["root_id"], session)
             const groups = await Group.findById(root_id, -1, true, session)
             res.json(groups).send()
-        })
+        },
+            {
+                maxWait: configuration.general.transaction_maxWait,
+                timeout: configuration.general.transaction_timeout,
+            })
     }catch(err: unknown){
         console.log(err)
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()
@@ -44,6 +53,7 @@ groupRouter.delete("/:id", async (req: CustomRequest, res)=>{
     try{
         await connection.$transaction(async (session)=>{
             const group_id = Number(req.params.id)
+            
             const group = await Group.findById(group_id, NULL, NULL, session)
             if(group == null)
                 return res.status(HttpStatus.NOT_FOUND).send()
@@ -55,13 +65,18 @@ groupRouter.delete("/:id", async (req: CustomRequest, res)=>{
             
             const root_id = await User.getProperty(req.auth.id, ["root_id"], session)
             
+            
             if(root_id === group_id)
                 return res.status(HttpStatus.FORBIDDEN).send()
             
             await Group.deleteById(group_id,session)
             
             res.status(HttpStatus.OK).send()
-        })
+        },
+            {
+                maxWait: configuration.general.transaction_maxWait,
+                timeout: configuration.general.transaction_timeout,
+            })
     }catch(err: unknown){
         logger.error(JSON.stringify(err))
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()

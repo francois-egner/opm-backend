@@ -225,7 +225,7 @@ export class Element{
             throw new Exception("Unable to find element to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-            let update_data = {}
+            const update_data = {}
             Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
                 configurable: true})
 

@@ -408,7 +408,7 @@ export class Entry{
             throw new Exception("Unable to find entry to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-            let update_data = {}
+            const update_data = {}
             Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
                 configurable: true})
 

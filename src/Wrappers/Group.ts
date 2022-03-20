@@ -109,8 +109,8 @@ export class Group{
             data:{
                 name: name,
                 icon: icon,
-                supergroup_id: root ? -1 : supergroup_id,
-                pos_index: root ? -1 : pos_index
+                supergroup_id: root ? NULL : supergroup_id,
+                pos_index: root ? NULL : pos_index
             }
         })
         return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
@@ -190,7 +190,7 @@ export class Group{
      * @param session
      * @returns Array of entry instances, ids of associated entries or null if no entry was founds
      */
-    private static async getEntries(id: number, flat: boolean, session: PrismaConnection) : Promise<Entry[] | number[] | null>{
+    public static async getEntries(id: number, flat: boolean, session: PrismaConnection) : Promise<Entry[] | number[] | null>{
         const exists = await Group.exists(id, session)
             if(!exists)
             throw new Exception("Group to find entries of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -205,7 +205,7 @@ export class Group{
                     }
                 })
 
-                if(entries_data == null)
+                if(entries_data.length == null)
                     return null
             
                 const entries: Entry[] | number[] = []
@@ -233,11 +233,13 @@ export class Group{
      */
     static async findById(id: number, depth=1, full=false, session: PrismaConnection) : Promise<Group|null>{
         try{
+            
             const group_data = await session.groups.findUnique({
                 where:{
                     id: id
                 }
             })
+            
             if(group_data == null)
                 return null
 
@@ -261,6 +263,7 @@ export class Group{
                 
 
         }catch(err: unknown){
+            console.log(err)
             throw new Exception("Failed to fetch group data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
@@ -298,25 +301,16 @@ export class Group{
             throw new Exception("Group to be deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-
-            if(group.supergroup_id !== -1)
+            
+            if(group.supergroup_id != NULL)
                 await Group.removeGroup(group.supergroup_id, id, NULL, session)
                 
             const entries_id = await Group.getEntries(id,true, session)
 
             for(const entry_id of entries_id as number[])
                 await Entry.deleteById(entry_id, session)
-
-            
-            const subgroups_id = await Group.getSubGroups(id, NULL, NULL, session) as number[]
-            
-
-            for(const subgroup_id of subgroups_id)
-                await Group.deleteById(subgroup_id, session)
-            
-                    
-                
-                
+          
+                           
             await session.groups.delete({
                 where:{
                     id: id
@@ -629,7 +623,7 @@ export class Group{
         
         let supergroup = await Group.findById(group.supergroup_id, NULL, NULL, session)
 
-        while(supergroup.supergroup_id !== -1){
+        while(supergroup.supergroup_id != NULL){
             supergroup = await Group.findById(supergroup.supergroup_id, NULL, NULL, session)
         }
 
@@ -666,7 +660,7 @@ export class Group{
             throw new Exception("Group to change property of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
         try{
-            let update_data = {}
+            const update_data = {}
             Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
                 configurable: true})
 
@@ -684,7 +678,7 @@ export class Group{
 
     static async getProperty(id: number, property_names: string[], session: PrismaConnection) : Promise<any>{
         try{
-            let select_object = {}
+            const select_object = {}
             for(const property_name of property_names){
                 Object.defineProperty(select_object, property_name, {value: true, writable: true, enumerable: true,
                     configurable: true})

@@ -418,7 +418,7 @@ export class Section{
         
         try{
 
-            let update_data = {}
+            const update_data = {}
             Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
                     configurable: true})
             

@@ -1,5 +1,5 @@
 import {Exception} from "../Utils/Exception"
-import {formatString, isValidB64, NULL} from "../Utils/Shared"
+import {formatString, isValidB64, NULL, Sleep} from "../Utils/Shared"
 import HttpStatus from 'http-status-codes'
 import {Group} from "./Group"
 import crypto from "crypto"
@@ -73,7 +73,6 @@ export class User{
     static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=true, profile_picture: string, session: PrismaConnection): Promise<any>{
         if(await User.checkEmailExistence(email, session) || await User.checkUsernameExistence(username, session))
             throw new Exception("User with provided email or username already exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-
         try{
             const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
                 modulusLength: 2048,
@@ -176,6 +175,21 @@ export class User{
     static async getRole(id: number, session: PrismaConnection) : Promise<Types.User.Role>{
         return await User.getProperty(id, ["role"], session)
     }
+    
+   /* static async deleteById(id: number, session: PrismaConnection): Promise<void> {
+        try {
+            const root_id = await User.getProperty(id, ["root_id"], session)
+            await Group.deleteById(root_id, session)
+            await session.users.delete({
+                where: {
+                    id: id
+                }
+            })
+        } catch (err: unknown) {
+            console.log(err)
+            throw new Exception("Failed to delete user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }*/
 
     /**
      * Get any user attribute
@@ -185,7 +199,7 @@ export class User{
      */
     static async getProperty(id: number, property_names: string[], session: PrismaConnection) : Promise<any[] | any>{
         try{
-            let select_object = {}
+            const select_object = {}
             for(const property_name of property_names){
                 Object.defineProperty(select_object, property_name, {value: true, writable: true, enumerable: true,
                     configurable: true})
@@ -223,13 +237,13 @@ export class User{
      * @param id Unique identifier of user to be deleted
      * @param session Transaction object for querying
      */
-    private static async deleteById(id: number, session: PrismaConnection) : Promise<void>{
-        const user = await User.findById(id, session)
-        if(user == null)
+    public static async deleteById(id: number, session: PrismaConnection) : Promise<void>{
+        const root_id = await User.getProperty(id, ["root_id"], session)
+        if(root_id == null)
             throw new Exception("User to be deleted not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{    
-            await Group.deleteById(user.root_id, session)
+            await Group.deleteById(root_id, session)
             await session.users.delete({
                 where:{
                     id: id
@@ -372,7 +386,7 @@ export class User{
             throw new Exception("Unable to find entry to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-            let update_data = {}
+            const update_data = {}
             Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
                 configurable: true})
 

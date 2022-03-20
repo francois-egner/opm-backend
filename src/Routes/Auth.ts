@@ -100,6 +100,9 @@ authRouter.put('/login/', async (req, res)=>{
             
             res.json({jwt: jwt}).send()
             
+        }, {
+            maxWait: 1000000, // default: 2000
+            timeout: 1000000, // default: 5000
         })
     }catch(err: unknown){
         res.status(HttpStatus.INTERNAL_SERVER_ERROR).send()
@@ -120,9 +123,11 @@ authRouter.put('/register/', async(req, res)=>{
              const surname = req.body.surname
              const display_name = req.body.display_name
              const profile_picture = req.body.profile_picture
-             
-            
+
              return await User.create(email, username, password_hash, role, forename, surname, display_name, NULL, profile_picture, session)
+         }, {
+             maxWait: 1000000, // default: 2000
+             timeout: 1000000, // default: 5000
          }) 
         
 
