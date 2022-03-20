@@ -1,11 +1,11 @@
 
 import { loadConfiguration } from "./Utils/Configurator";
 import {logger} from './Utils/Logger';
-import {connect, disconnect} from '../db'
+import {connect, connection, disconnect} from '../db'
 import { Exception } from "./Utils/Exception";
-import express from "express";
 import { configuration } from "./Utils/Configurator"
 import { auth, authRouter } from "./Routes/Auth"
+import express, { NextFunction, Request, Response } from 'express';
 import {userRouter} from "./Routes/User";
 import {groupRouter} from "./Routes/Group";
 
@@ -16,6 +16,12 @@ const unless = function(middleware, ...paths) {
       const pathCheck = paths.some(path => path === req.path);
       pathCheck ? next() : middleware(req, res, next);
     };
+}
+
+export interface CustomRequest extends Request {
+    auth:{
+        id: number
+    } 
 }
 
 const main = async ()=>{
@@ -29,8 +35,6 @@ const main = async ()=>{
         server.use("/auth", authRouter)
         server.use("/users", userRouter)
         server.use("/groups", groupRouter)
-        
-        
         
         server.listen(configuration.express.port,()=>{
             console.log("Server started!")

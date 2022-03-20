@@ -3,14 +3,17 @@ import {connection} from "../../db";
 import {User} from "../Wrappers/User";
 import {logger} from "../Utils/Logger";
 import HttpStatus from 'http-status-codes'
+import {CustomRequest} from "../index";
+import {use} from "chai";
 
 export const userRouter = express.Router()
 
 //Receive all private user data (own)
-userRouter.get("/", async (req, res)=>{
+userRouter.get("/", async (req: CustomRequest, res)=>{
+    
     try{
-        await connection.task(async (session) => {
-            const user_data = await User.getOwn(req.auth.id, session)
+        await connection.$transaction(async (session) => {
+            const user_data = await User.findById(req.auth.id, session)
             res.json(user_data).send()
         })
     }catch(err: unknown){

@@ -7,6 +7,7 @@ import HttpStatus from 'http-status-codes'
 import { hasNumber, NULL} from "../Utils/Shared";
 import { Exception } from "../Utils/Exception";
 import crypto from "crypto"
+import {CustomRequest} from "../index";
 
 
 export const authRouter = express.Router()
@@ -20,7 +21,7 @@ const privMatrix = {
     "/users/" : {roles:[Types.User.Role.admin, Types.User.Role.normal], methods:["DELETE"]}
 }
 
-export async function auth(request: express.Request, response: express.Response, next) {
+export async function auth(request: CustomRequest, response: express.Response, next) {
     
         const bearer_header = request.headers.authorization
 
@@ -38,12 +39,14 @@ export async function auth(request: express.Request, response: express.Response,
         }catch(err: unknown){
             return response.status(HttpStatus.UNAUTHORIZED).send()
         }
-
+        
+        
         //Check if user is enabled
         const user_enabled = await User.getProperty(request.auth.id,["enabled"], connection)
         if(!user_enabled)
             return response.status(HttpStatus.UNAUTHORIZED).send()
         
+    
         //Check if role is allowed to use used route
         const role = await User.getRole(request.auth.id, connection)
         const requestPath = request.path.replace(/\/\d+/g, "/:id")
@@ -65,7 +68,7 @@ export async function auth(request: express.Request, response: express.Response,
 
 authRouter.put('/login/', async (req, res)=>{
     try{
-        await connection.task(async (session)=>{
+        await connection.$transaction(async (session)=>{
             
             const email = req.body.email
             const password_hash = req.body.password_hash
@@ -107,7 +110,7 @@ authRouter.put('/login/', async (req, res)=>{
 
 authRouter.put('/register/', async(req, res)=>{
      try{
-         const new_user = await connection.tx(async (session)=>{
+         const new_user = await connection.$transaction(async (session)=>{
             
              const email =  req.body.email
              const password_hash = req.body.password_hash

@@ -5,12 +5,13 @@ import {logger} from "../Utils/Logger";
 import HttpStatus from 'http-status-codes'
 import {Group} from "../Wrappers/Group";
 import {NULL} from "../Utils/Shared";
+import {CustomRequest} from "../index";
 
 export const groupRouter = express.Router()
 
-groupRouter.put("/", async (req, res)=>{
+groupRouter.put("/", async (req: CustomRequest, res)=>{
     try{
-        await connection.tx(async (session)=>{
+        await connection.$transaction(async (session)=>{
             const name = req.body.name
             const icon = req.body.icon
             const supergroup_id = req.body.supergroup_id
@@ -26,9 +27,9 @@ groupRouter.put("/", async (req, res)=>{
     }
 })
 
-groupRouter.get("/", async (req, res)=>{
+groupRouter.get("/", async (req: CustomRequest, res)=>{
     try{
-        await connection.task(async (session)=>{
+        await connection.$transaction(async (session)=>{
             const root_id = await User.getProperty(req.auth.id, ["root_id"], session)
             const groups = await Group.findById(root_id, -1, true, session)
             res.json(groups).send()
@@ -39,15 +40,16 @@ groupRouter.get("/", async (req, res)=>{
     }
 })
 
-groupRouter.delete("/:id", async (req, res)=>{
+groupRouter.delete("/:id", async (req: CustomRequest, res)=>{
     try{
-        await connection.tx(async (session)=>{
+        await connection.$transaction(async (session)=>{
             const group_id = Number(req.params.id)
             const group = await Group.findById(group_id, NULL, NULL, session)
             if(group == null)
                 return res.status(HttpStatus.NOT_FOUND).send()
             
             const owner_id = await Group.getOwner(group_id, NULL, session)
+            
             if(owner_id !== req.auth.id)
                 return res.status(HttpStatus.FORBIDDEN).send()
             

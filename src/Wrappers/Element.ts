@@ -1,7 +1,6 @@
 
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
-import { elementQueries } from "../../db"
 import { Section } from "./Section"
 import {formatString, NULL} from "../Utils/Shared"
 import { User } from "./User"
@@ -78,7 +77,7 @@ export class Element{
      * @param pos_index - Index of position the new element should be place to in the associated section
      * @param session - Associated session
      */
-    public static async create(name: string, value: any, type: Types.Element.ElementType, section_id: number, pos_index: number, session: ITask<never>): Promise<Element>{
+    public static async create(name: string, value: any, type: Types.Element.ElementType, section_id: number, pos_index: number, session: PrismaConnection): Promise<Element>{
          
         const section = await Section.findById(section_id, session)
 
@@ -101,10 +100,17 @@ export class Element{
         }
             
         //Create new element
-        const queryData = [name, value, type, section_id, pos_index]
-        const elementData = await session.one(elementQueries.create, queryData)
+        const element_data = await session.elements.create({
+            data:{
+                name: name,
+                value: value,
+                type: type,
+                section_id: section_id,
+                pos_index: pos_index
+            }
+        })
 
-        return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
+        return new Element(element_data.id, element_data.name, element_data.value, element_data.type, element_data.pos_index, element_data.section_id)
     }
     
 
@@ -115,14 +121,17 @@ export class Element{
     * @param session - Associated session
     * @returns Instance of a found element or null if no element with provided id was found
     */
-    public static async findById(id: number, session: ITask<never>) : Promise<Element|null>{
+    public static async findById(id: number, session: PrismaConnection) : Promise<Element|null>{
         try{
-            const queryData = [id]
-            const elementData = await session.oneOrNone(elementQueries.findById, queryData)
-            if(elementData == null)
+            const element_data = await session.elements.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            if(element_data == null)
                 return null
 
-            return new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
+            return new Element(element_data.id, element_data.name, element_data.value, element_data.type, element_data.pos_index, element_data.section_id)
         }catch(err: unknown){
             throw new Exception("Failed to find element", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -136,10 +145,14 @@ export class Element{
      * @param session - Associated session
      * @returns true if an element with the provided id was found, else false
      */
-    public static async exists(id: number, session: ITask<never>) : Promise<boolean>{
+    public static async exists(id: number, session: PrismaConnection) : Promise<boolean>{
         try{
-            const existsData = await session.one(elementQueries.exists, [id])
-            return existsData.exists
+            const exists_data = await session.elements.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            return exists_data != null 
         }catch(err: unknown){
             throw new Exception("Failed to check for existence", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -152,7 +165,7 @@ export class Element{
     * @param id - Unique identifier of element to be deleted
     * @param session - Associated session 
     */
-    public static async deleteById(id: number, session: ITask<never>) : Promise <void>{
+    public static async deleteById(id: number, session: PrismaConnection) : Promise <void>{
         
         const element = await Element.findById(id, session)
         if(element == null)
@@ -161,9 +174,12 @@ export class Element{
         try{
 
             await Section.removeElement(element.section_id, id, NULL, session)
-            
-            const queryData = [id]
-            await session!.none(elementQueries.deleteById, queryData)
+           
+            await session.elements.delete({
+                where:{
+                    id: id
+                }
+            })
             
             
         }catch(err: unknown){
@@ -180,7 +196,7 @@ export class Element{
      * @param session - Associated session
      * @returns User object or user id
      */
-    public static async getOwner(id: number, flat=true, session: ITask<never>) : Promise<User|number>{
+    public static async getOwner(id: number, flat=true, session: PrismaConnection) : Promise<User|number>{
         const element = await Element.findById(id, session)
 
         if(element == null)
@@ -200,7 +216,7 @@ export class Element{
      * @param session - Associated session
      */
 
-    static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
+    static async setProperty(id: number, property_name: string, new_value: any, session: PrismaConnection) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
@@ -209,10 +225,17 @@ export class Element{
             throw new Exception("Unable to find element to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-            const queryString = formatString(elementQueries.setProperty as string, property_name)
-            const queryData = [id,  new_value]
+            let update_data = {}
+            Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
+                configurable: true})
 
-            await session.none(queryString, queryData)
+            await session.elements.update({
+                where:{
+                    id: id
+                },
+                data: update_data
+            })
+            
         }catch(err: unknown){
             throw new Exception("Failed to change property of element!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
