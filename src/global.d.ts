@@ -1,8 +1,11 @@
 import { ITask } from "pg-promise"
-
+import { PrismaClient, Prisma } from '@prisma/client'
+import { Request, Response, NextFunction } from 'express';
 
 declare global {
-   
+
+       
+    type PrismaConnection = PrismaClient<any> | Omit<PrismaClient<Prisma.PrismaClientOptions, never, Prisma.RejectOnNotFound | Prisma.RejectPerOperation>, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use">
     /**
      * Custom defined types
      */
@@ -84,18 +87,11 @@ declare global {
               jwt_expiration_time: number
             },
             general:{
-              sqlPath: string,
-              max_group_name_length: number
+                sqlPath: string,
+                max_group_name_length: number, 
+                transaction_timeout: number,
+                transaction_maxWait: number
             }
-        }
-    }
-
-    namespace Express {
-        interface Request {
-          auth?: {
-              id: number
-          }
-          session: ITask<never>
         }
     }
 }

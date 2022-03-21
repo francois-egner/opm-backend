@@ -1,0 +1,61 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["interactiveTransactions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model elements {
+  id         Int    @id(map: "elements_pk") @default(autoincrement())
+  name       String @db.VarChar
+  value      String @db.VarChar
+  type       Int    @db.SmallInt
+  pos_index  Int
+  section_id Int
+}
+
+model entries {
+  id        Int      @id(map: "entries_pk") @default(autoincrement())
+  name      String   @db.VarChar
+  group_id  Int      @default(-1)
+  pos_index Int      @default(-1)
+  icon      String?  @db.VarChar
+  tags      String[] @db.VarChar
+}
+
+model groups {
+  name          String   @db.VarChar
+  icon          String?  @db.VarChar
+  pos_index     Int      @default(-1)
+  supergroup_id Int?
+  id            Int      @id(map: "groups_pk") @default(autoincrement())
+  groups        groups?  @relation("groupsTogroups_supergroup_id", fields: [supergroup_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "groups_fk")
+  other_groups  groups[] @relation("groupsTogroups_supergroup_id")
+}
+
+model sections {
+  name      String @db.VarChar
+  pos_index Int    @default(-1) @db.SmallInt
+  entry_id  Int    @default(-1)
+  id        Int    @id(map: "sections_pk") @default(autoincrement())
+}
+
+model users {
+  id                 Int     @id(map: "users_pk") @default(autoincrement())
+  email              String  @db.VarChar
+  password_hash      String  @db.VarChar
+  role               Int     @db.SmallInt
+  forename           String? @db.VarChar
+  surname            String? @db.VarChar
+  display_name       String  @db.VarChar
+  username           String  @db.VarChar
+  enabled            Boolean
+  root_id            Int     @unique(map: "users_un")
+  profile_picture    String? @db.VarChar
+  creation_timestamp BigInt
+  last_login         BigInt  @default(0)
+  public_key         String  @db.VarChar
+}

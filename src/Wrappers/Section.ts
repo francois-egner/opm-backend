@@ -1,5 +1,5 @@
-import { sectionQueries } from "../../db"
-import {checkForUndefined, formatString, NULL} from "../Utils/Shared"
+
+import {checkForUndefined, NULL} from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
 import {Element} from "./Element"
@@ -65,7 +65,7 @@ export class Section{
      * @param {ITask<never>} session - Associated session
      */
 
-    public static async create(name: string, entry_id: number, pos_index: number, session: ITask<never>) : Promise<Section>{
+    public static async create(name: string, entry_id: number, pos_index: number, session: PrismaConnection) : Promise<Section>{
         
         //TODO: Proper param validation
         if (!checkForUndefined({name})) 
@@ -90,10 +90,16 @@ export class Section{
                 await Section.setProperty(section.id, "pos_index", section.pos_index+1, session)
         }
             
-        const queryData = [name, entry_id, pos_index]
-        const sectionData = await session.one(sectionQueries.create, queryData)
+        
+        const section_data = await session.sections.create({
+            data:{
+                name: name,
+                entry_id: entry_id,
+                pos_index: pos_index
+            }
+        })
 
-        return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id)
+        return new Section(section_data.id, section_data.name, section_data.pos_index, section_data.entry_id)
         
     }
     
@@ -105,10 +111,17 @@ export class Section{
      * @param id Unique identifier of section to check existence for
      * @param session
      */
-    public static async exists(id, session) : Promise<boolean>{
+    public static async exists(id: number, session: PrismaConnection) : Promise<boolean>{
         try{
-            const existsData = await session.one(sectionQueries.exists, [id]);
-            return existsData.exists;
+            /*const existsData = await session.one(sectionQueries.exists, [id])
+            return existsData.exists;*/
+            const exists_data = await session.sections.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            
+            return exists_data != null
         }catch(err: unknown){
             throw new Exception("Failed to check for existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -122,15 +135,20 @@ export class Section{
      * @param session - Associated session
      * @returns Section instance or null if no section with provided id was found
      */
-    public static async findById(id: number, session: ITask<never>) : Promise<Section | null>{
+    public static async findById(id: number, session: PrismaConnection) : Promise<Section | null>{
         try{
-            const sectionData = await session.oneOrNone(sectionQueries.findById, [id])
             
-            if (sectionData == null)
+            const section_data = await session.sections.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            
+            if (section_data == null)
                 return null
 
             const elements = await Section.getElements(id, false, session) as Element[]
-            return new Section(sectionData.id, sectionData.name, sectionData.pos_index, sectionData.entry_id, elements)
+            return new Section(section_data.id, section_data.name, section_data.pos_index, section_data.entry_id, elements)
         }catch(err: unknown){
             throw new Exception("Failed to find section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -145,7 +163,7 @@ export class Section{
      * @param session
      * @returns Array of Element instances, ids of associated elements or null if no element was found
      */
-    public static async getElements(id: number, flat=true, session: ITask<never>) : Promise<Element[] | number[] | null>{
+    public static async getElements(id: number, flat=true, session: PrismaConnection) : Promise<Element[] | number[] | null>{
         const exists = await Section.exists(id,session)
         
         if(!exists)
@@ -153,14 +171,27 @@ export class Section{
         
         try{
             const elements: Element[] | number[] = []
-            const elementsData = await session.manyOrNone(flat ? sectionQueries.getElementsFlat: sectionQueries.getElements, [id])
             
-            if(elementsData == null)
+            const elements_data = await session.elements.findMany({
+                where:{
+                    section_id: id
+                },
+                select: {
+                    id: true,
+                    name: !flat,
+                    value: !flat,
+                    type: !flat,
+                    section_id: !flat,
+                    pos_index: !flat
+                }
+            })
+            
+            if(elements_data == null)
                 return null
 
-            for(const elementData of elementsData){
-                const newElement = flat ? elementData.id : new Element(elementData.id, elementData.name, elementData.value, elementData.type, elementData.pos_index, elementData.section_id)
-                elements.push(newElement)
+            for(const element_data of elements_data){
+                const newElement = flat ? element_data.id : new Element(element_data.id, element_data.name, element_data.value, element_data.type, element_data.pos_index, element_data.section_id)
+                elements.push(newElement as number & Element) //Weird typescript bug
             }
 
             return elements
@@ -177,7 +208,7 @@ export class Section{
      * @param session - Associated session
      */
 
-    public static async deleteById(id: number, session: ITask<never>) : Promise<void>{
+    public static async deleteById(id: number, session: PrismaConnection) : Promise<void>{
         const section = await Section.findById(id, session)
         if (section == null)
             throw new Exception("Failed to delete section. No section with provided id exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
@@ -190,7 +221,12 @@ export class Section{
             for(const element_id of elements_id) 
                 await Element.deleteById(element_id, session)
                 
-            await session!.none(sectionQueries.deleteById, [id])
+            /*await session!.none(sectionQueries.deleteById, [id])*/
+            await session.sections.delete({
+                where:{
+                    id: id
+                }
+            })
                 
         }catch(err: unknown){
             throw new Exception("Failed to delete section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -207,7 +243,7 @@ export class Section{
      * @returns Section object or user id
      */
 
-    public static async getOwner(id: number, flat=true, session: ITask<never>) : Promise<User|number>{
+    public static async getOwner(id: number, flat=true, session: PrismaConnection) : Promise<User|number>{
         const section = await Section.findById(id, session)
 
         if(section == null)
@@ -228,7 +264,7 @@ export class Section{
      * @param session
      */
 
-    public static async addElement(id: number, element: Element, pos_index: number, session: ITask<never>) : Promise<void>{
+    public static async addElement(id: number, element: Element, pos_index: number, session: PrismaConnection) : Promise<void>{
         //TODO: More parameter validation
         const section = await Section.findById(id, session)
 
@@ -263,7 +299,7 @@ export class Section{
      * @param del if true, the element will be deleted
      * @param session - Associated session
      */
-    static async removeElement(id: number, element_id: number, del: boolean, session: ITask<never>) : Promise<void>{
+    static async removeElement(id: number, element_id: number, del: boolean, session: PrismaConnection) : Promise<void>{
         
         const elements = await Section.getElements(id, false, session) as Element[]
         const element_to_remove = await Element.findById(element_id,session)
@@ -294,7 +330,7 @@ export class Section{
      * @param new_pos - Index of new position
      * @param session - Associated session
      */
-    public static async repositionElement(id: number, element_id: number, new_pos: number, session: ITask<never>) : Promise<void>{
+    public static async repositionElement(id: number, element_id: number, new_pos: number, session: PrismaConnection) : Promise<void>{
         const elements = await Section.getElements(id, false, session) as Element[]
         const element_to_reposition = await Element.findById(element_id, session)
 
@@ -330,7 +366,7 @@ export class Section{
     * @param session - Associated session
     */
 
-    public static async moveElement(id: number, element_id: number, new_section_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
+    public static async moveElement(id: number, element_id: number, new_section_id: number, new_pos_index: number, session: PrismaConnection) : Promise<void>{
         const elements = await Section.getElements(id, false, session) as Element[]
         const element_to_move = await Element.findById(element_id, session)
 
@@ -372,7 +408,7 @@ export class Section{
      * @param session
      */
 
-    public static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
+    public static async setProperty(id: number, property_name: string, new_value: any, session: PrismaConnection) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
@@ -382,10 +418,17 @@ export class Section{
         
         try{
 
-            const queryString = formatString(sectionQueries.setProperty as string, property_name)
-            const queryData = [id,  new_value]
+            const update_data = {}
+            Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
+                    configurable: true})
+            
 
-            await session.none(queryString, queryData)
+            await session.sections.update({
+                where:{
+                    id: id
+                },
+                data: update_data
+            })
         }catch(err: unknown){
             throw new Exception("Failed to change property of section!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }

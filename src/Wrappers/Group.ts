@@ -1,5 +1,4 @@
 
-import { groupQueries } from "../../db"
 import {formatString, NULL} from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
@@ -78,10 +77,9 @@ export class Group{
      * @param session Transaction object for querying
      * @returns Newly created group
      */
-    static async create(name: string, icon: string, supergroup_id: number, pos_index: number, root: boolean, session: ITask<never>){
+    static async create(name: string, icon: string, supergroup_id: number, pos_index: number, root: boolean, session: PrismaConnection){
         if(!root){
-            //TODO: Parameter validation (owner_id)
-            //FIXME: Only retrieve id using getProperty to reduce overload
+            
             const supergroup = await Group.findById(supergroup_id, NULL, NULL, session)
 
             if(supergroup == null)
@@ -106,8 +104,15 @@ export class Group{
         }
         
 
-        const queryData = [name, icon, root ? -1 : supergroup_id, root ? -1 : pos_index]
-        const groupData = await session.one(groupQueries.create, queryData)
+        
+        const groupData = await session.groups.create({
+            data:{
+                name: name,
+                icon: icon,
+                supergroup_id: root ? NULL : supergroup_id,
+                pos_index: root ? NULL : pos_index
+            }
+        })
         return new Group(groupData.id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id)
     
     }
@@ -120,11 +125,15 @@ export class Group{
      * @param session
      * @returns True if group with provided id exists, else false
      */
-    static async exists(id: number, session: ITask<never>) : Promise<boolean>{
+    static async exists(id: number, session: PrismaConnection) : Promise<boolean>{
         try{
-            const queryData = [id]
-            const existsData = await session.one(groupQueries.exists, queryData);
-            return existsData.exists;
+            const exists_data = await session.groups.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            
+            return exists_data != null
         }catch(err: unknown){
             throw new Exception("Failed to check for existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -140,22 +149,31 @@ export class Group{
      * @param session
      * @returns Array of group instances, ids of associated groups or null if no group was founds
      */
-    private static async getSubGroups(id: number, flat = true, full=false, session: ITask<never>) : Promise<Group[]|number[] | null>{
+    private static async getSubGroups(id: number, flat = true, full=false, session: PrismaConnection) : Promise<Group[]|number[] | null>{
         const exists = await Group.exists(id, session)
 
         if(!exists)
                 throw new Exception("Group to find subgroups from not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-            const queryData = [id]
-            const groupsData = await session.manyOrNone(groupQueries.getSubGroups, queryData)
+            const groups_data = await session.groups.findMany({
+                where:{
+                    supergroup_id: id
+                },
+                select:{
+                    id: true
+                }
+            })
 
-            if(groupsData == null)
+            if(groups_data == null)
                 return null
             
             const subGroups: Group[] | number[] = []
-            for(const groupData of groupsData)
-                subGroups.push(flat ? groupData.id : await Group.findById(groupData.id, null, full, session))
+            for(const groupData of groups_data){
+                const push_data = flat ? groupData.id : await Group.findById(groupData.id, null, full, session)
+                subGroups.push(push_data as number & Group)
+                
+            }
 
             return subGroups
         }catch(err: unknown){
@@ -172,21 +190,30 @@ export class Group{
      * @param session
      * @returns Array of entry instances, ids of associated entries or null if no entry was founds
      */
-    private static async getEntries(id: number, flat: boolean, session: ITask<never>) : Promise<Entry[] | number[] | null>{
+    public static async getEntries(id: number, flat: boolean, session: PrismaConnection) : Promise<Entry[] | number[] | null>{
         const exists = await Group.exists(id, session)
             if(!exists)
             throw new Exception("Group to find entries of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
             try{
-                const queryData = [id]
-                const entriesData = await session.manyOrNone(groupQueries.getEntries, queryData)
+                const entries_data = await session.entries.findMany({
+                    where:{
+                        group_id: id
+                    },
+                    select:{
+                        id: true
+                    }
+                })
 
-                if(entriesData == null)
+                if(entries_data.length == null)
                     return null
             
                 const entries: Entry[] | number[] = []
-                for(const entryData of entriesData)
-                    entries.push(flat ? entryData.id : await Entry.findById(entryData.id,session))
+                for(const entryData of entries_data){
+                    const push_data = flat ? entryData.id : await Entry.findById(entryData.id,session)
+                    entries.push(push_data as number & Entry) //Weird bug again, typecasting is necessary here for whatever reason
+                    
+                }
 
                 return entries
             }catch(err: unknown){
@@ -204,11 +231,16 @@ export class Group{
      * @param session
      * @returns Group instance or null if no group with provided id was found
      */
-    static async findById(id: number, depth=1, full=false, session: ITask<never>) : Promise<Group|null>{
+    static async findById(id: number, depth=1, full=false, session: PrismaConnection) : Promise<Group|null>{
         try{
-            const queryData = [id]
-            const groupData= await session.oneOrNone(groupQueries.findById, queryData)
-            if(groupData == null)
+            
+            const group_data = await session.groups.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            
+            if(group_data == null)
                 return null
 
             const subgroups = []
@@ -227,23 +259,29 @@ export class Group{
             const entries = await Group.getEntries(id, !full, session)
 
 
-            return new Group(id, groupData.name, groupData.pos_index, groupData.icon, groupData.supergroup_id, subgroups, entries)
+            return new Group(id, group_data.name, group_data.pos_index, group_data.icon, group_data.supergroup_id, subgroups, entries)
                 
 
         }catch(err: unknown){
+            console.log(err)
             throw new Exception("Failed to fetch group data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
-    static async getSubCount(id: number, session: ITask<never>) : Promise<number>{
+    static async getSubCount(id: number, session: PrismaConnection) : Promise<number>{
         const exists = await Group.exists(id, session)
 
         if(!exists)
             throw new Exception("Group not found to get subgroup count from", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-            const countData = await session.one('SELECT COUNT(id) FROM "Category".groups WHERE supergroup_id = $1;', [id])
-            return countData.count
+            const count_data = await session.groups.aggregate({
+                _count:{
+                    id: true
+                }
+            })
+            
+            return count_data._count.id
         }catch(err: unknown){
             throw new Exception("Failed to get subgroup count!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -256,33 +294,28 @@ export class Group{
      * @param id Unique identifier of group to be deleted
      * @param session - Associated session
      */
-    static async deleteById(id: number, session: ITask<never>) : Promise<void>{
+    static async deleteById(id: number, session: PrismaConnection) : Promise<void>{
         
         const group = await Group.findById(id, NULL, NULL, session)
         if(group == null)
             throw new Exception("Group to be deleted does not exist!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-
-            if(group.supergroup_id !== -1)
+            
+            if(group.supergroup_id != NULL)
                 await Group.removeGroup(group.supergroup_id, id, NULL, session)
                 
             const entries_id = await Group.getEntries(id,true, session)
 
             for(const entry_id of entries_id as number[])
                 await Entry.deleteById(entry_id, session)
-
-            
-            const subgroups_id = await Group.getSubGroups(id, NULL, NULL, session) as number[]
-            
-
-            for(const subgroup_id of subgroups_id)
-                await Group.deleteById(subgroup_id, session)
-            
-                    
-                
-                
-            await session!.none(groupQueries.deleteById, [id])
+          
+                           
+            await session.groups.delete({
+                where:{
+                    id: id
+                }
+            })
 
             
         }catch(err: unknown){
@@ -300,7 +333,7 @@ export class Group{
      * @param pos_index Position (index) the entry should be place to. Default: Last position
      * @param session - Associated session
      */
-    private static async addEntry (id: number, entry: Entry, pos_index: number, session: ITask<never>) : Promise<void>{
+    private static async addEntry (id: number, entry: Entry, pos_index: number, session: PrismaConnection) : Promise<void>{
         const group = await Group.findById(id, NULL, NULL, session)
 
         if(group == null)
@@ -334,7 +367,7 @@ export class Group{
      * @param [del] If true, entry will be deleted completely
      * @param session
      */
-    static async removeEntry(id: number, entry_id: number, del: boolean, session: ITask<never>) : Promise<void>{
+    static async removeEntry(id: number, entry_id: number, del: boolean, session: PrismaConnection) : Promise<void>{
         const entries = await Group.getEntries(id, false, session) as Entry[]
         const entry_to_remove = await Entry.findById(entry_id, session)
 
@@ -365,7 +398,7 @@ export class Group{
      * @param new_pos_index Position (index) the entry should be repositioned to
      * @param session
      */
-    private static async repositionEntry(id: number, entry_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
+    private static async repositionEntry(id: number, entry_id: number, new_pos_index: number, session: PrismaConnection) : Promise<void>{
         const entries = await Group.getEntries(id, false, session) as Entry[]
         const entry_to_move = await Entry.findById(entry_id, session)
 
@@ -403,7 +436,7 @@ export class Group{
      * @param new_pos_index Position (index) to move entry to
      * @param session
      */
-    private static async moveEntry(id: number, entry_id: number, new_group_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
+    private static async moveEntry(id: number, entry_id: number, new_group_id: number, new_pos_index: number, session: PrismaConnection) : Promise<void>{
         const entries = await Group.getEntries(id, false, session) as Entry[]
         const entry_to_move = await Entry.findById(entry_id, session)
 
@@ -443,7 +476,7 @@ export class Group{
      * @param [pos_index] Position (index) the new subgroup should be positioned to
      * @param session
      */
-    private static async addGroup(id: number, group: Group, pos_index: number, session: ITask<never>) : Promise<void>{
+    private static async addGroup(id: number, group: Group, pos_index: number, session: PrismaConnection) : Promise<void>{
         const supergroup = await Group.findById(id, NULL, NULL, session)
 
         if(supergroup == null)
@@ -459,7 +492,7 @@ export class Group{
 
         
         for (const subgroup_id of supergroup!.subgroups as number[]){
-            const subgroup_pos_index = await Group.getProperty(subgroup_id, "pos_index", session)
+            const subgroup_pos_index = await Group.getProperty(subgroup_id, ["pos_index"], session)
             
             if(subgroup_pos_index >= pos_index!)
                 await Group.setProperty(subgroup_id, "pos_index", subgroup_pos_index+1, session)   
@@ -479,7 +512,7 @@ export class Group{
      * @param [del] If true, removed group will be deleted completely
      * @param session - Associated session
      */
-    private static async removeGroup(id: number, subgroup_id: number, del: boolean, session: ITask<never>) : Promise<void>{
+    private static async removeGroup(id: number, subgroup_id: number, del: boolean, session: PrismaConnection) : Promise<void>{
         const subgroups = await Group.getSubGroups(id, false, NULL, session) as Group[]
         const group_to_remove = await Group.findById(subgroup_id, NULL, NULL, session)
 
@@ -512,7 +545,7 @@ export class Group{
      * @param session
      */
 
-    private static async repositionGroup(id: number, subgroup_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
+    private static async repositionGroup(id: number, subgroup_id: number, new_pos_index: number, session: PrismaConnection) : Promise<void>{
         const group_to_move = await Group.findById(subgroup_id, NULL, NULL, session)
         if(group_to_move == null)
             throw new Exception("Group to be moved not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -547,7 +580,7 @@ export class Group{
      * @param new_pos_index Position (index) the subgroup should be positioned to in the new supergroup
      * @param session
      */
-    private static async moveGroup(id: number, subgroup_id: number, new_supergroup_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
+    private static async moveGroup(id: number, subgroup_id: number, new_supergroup_id: number, new_pos_index: number, session: PrismaConnection) : Promise<void>{
         const subgroups = await Group.getSubGroups(id, false, NULL, session) as Group[]
         const subgroup_to_move = await Group.findById(subgroup_id, NULL, NULL, session)
 
@@ -583,20 +616,28 @@ export class Group{
      * @param session - Associated session
      * @returns User object or user id
      */
-    static async getOwner(id: number, flat=true, session: ITask<never>) : Promise<User|number>{
+    static async getOwner(id: number, flat=true, session: PrismaConnection) : Promise<User|number>{
         const group = await Group.findById(id, NULL, NULL, session)
-
         if(group == null)
             throw new Exception("No group with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         let supergroup = await Group.findById(group.supergroup_id, NULL, NULL, session)
 
-        while(supergroup.supergroup_id !== -1){
+        while(supergroup.supergroup_id != NULL){
             supergroup = await Group.findById(supergroup.supergroup_id, NULL, NULL, session)
         }
 
-        const user_id = (await session.one(groupQueries.getOwner, [supergroup.id])).id
-        return flat ? user_id : await User.findById(user_id, session)
+        const user_data = await session.users.findFirst({
+            where:{
+                root_id: supergroup.id
+            },
+            select:{
+                id: true
+            }   
+        
+        })
+        
+        return flat ? user_data.id : await User.findById(user_data.id, session)
     }
 
     //#endregion
@@ -610,7 +651,7 @@ export class Group{
      * @param new_value New value for provided property
      * @param session - Associated session
      */
-    private static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
+    private static async setProperty(id: number, property_name: string, new_value: any, session: PrismaConnection) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
@@ -619,21 +660,42 @@ export class Group{
             throw new Exception("Group to change property of not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
 
         try{
-            const queryData = [id, new_value]
-            const queryString = formatString(groupQueries.setProperty as string, property_name)
+            const update_data = {}
+            Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
+                configurable: true})
 
-            await session.none(queryString, queryData)
+            await session.sections.update({
+                where:{
+                    id: id
+                },
+                data: update_data
+            })
 
         }catch(err: unknown){
             throw new Exception("Failed to change property of group!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
     }
 
-    static async getProperty(id: number, property_name: string, session: ITask<never>) : Promise<any>{
+    static async getProperty(id: number, property_names: string[], session: PrismaConnection) : Promise<any>{
         try{
-            const queryString = formatString(groupQueries.getProperty, property_name)
-            const propertyData = await session.one(queryString, [id])
-            return propertyData[property_name]
+            const select_object = {}
+            for(const property_name of property_names){
+                Object.defineProperty(select_object, property_name, {value: true, writable: true, enumerable: true,
+                    configurable: true})
+            }
+
+            const propertyData = await session.groups.findMany({
+                where:{
+                    id: id
+                },
+                select:select_object
+            })
+
+            const return_data = []
+            for(let index = 0; index < propertyData.length; index++){
+                return_data.push(propertyData[index][property_names[index]])
+            }
+            return propertyData.length === 1 ? return_data[0] : return_data
         }catch(err: unknown){
             throw new Exception("Failed to fetch property!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }

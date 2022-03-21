@@ -1,9 +1,7 @@
 import {Exception} from "../Utils/Exception"
-import {formatString, isValidB64, NULL} from "../Utils/Shared"
-import {userQueries} from "../../db"
+import {formatString, isValidB64, NULL, Sleep} from "../Utils/Shared"
 import HttpStatus from 'http-status-codes'
 import {Group} from "./Group"
-import {IDatabase, ITask} from "pg-promise";
 import crypto from "crypto"
 
 const propertyNames = ["email", "password_hash", "role", "forename", "surname", "display_name", "enabled", "profile_picture"]
@@ -72,10 +70,9 @@ export class User{
      * @returns Instance of newly created user
      */
 
-    static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=true, profile_picture: string, session: ITask<never>): Promise<any>{
+    static async create(email: string, username: string, password_hash: string, role: Types.User.Role, forename: string, surname: string, display_name: string, enabled=true, profile_picture: string, session: PrismaConnection): Promise<any>{
         if(await User.checkEmailExistence(email, session) || await User.checkUsernameExistence(username, session))
             throw new Exception("User with provided email or username already exists!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
-
         try{
             const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
                 modulusLength: 2048,
@@ -90,12 +87,26 @@ export class User{
             })
                         
             const root_group = await Group.create(`${username}_root`, NULL, NULL, NULL,true, session)
-                            
-            const query_data = [email, username, password_hash, role, forename, surname, display_name, enabled, profile_picture, root_group.id, Date.now(), publicKey ]
             
-            const user_data = await session.one(userQueries.create, query_data)
-            const user = new User(user_data.id, user_data.email, user_data.username, user_data.password_hash, user_data.role, user_data.forename, user_data.surname, user_data.display_name, user_data.enabled, new Date(user_data.creation_timestamp), 
-                            user_data.root_id, user_data.profile_picture, new Date(user_data.last_login), publicKey)
+            const user_data = await session.users.create({
+                data:{
+                    email: email,
+                    username: username,
+                    password_hash: password_hash,
+                    role: role,
+                    forename: forename,
+                    surname: surname,
+                    display_name: display_name,
+                    enabled: enabled,
+                    profile_picture: profile_picture,
+                    root_id: root_group.id,
+                    creation_timestamp: Date.now(),
+                    public_key: publicKey
+                }
+            })
+            
+            const user = new User(user_data.id, user_data.email, user_data.username, user_data.password_hash, user_data.role, user_data.forename, user_data.surname, user_data.display_name, user_data.enabled, new Date(Number(user_data.creation_timestamp)), 
+                            user_data.root_id, user_data.profile_picture, new Date(Number(user_data.last_login)), publicKey)
             return {
                 user_data: user,
                 private_key: privateKey
@@ -106,30 +117,27 @@ export class User{
         }  
     }
     
-    static async getOwn(id: number, session: ITask<never>): Promise<Types.User.OwnUser | null>{
-        try{
-            return await session.oneOrNone(userQueries.getOwn, [id])
-
-        }catch(err: unknown){
-            throw new Exception("Failed to fetch user data!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
-        }
-    }
-
     /**
      * Fetches user data
      * @param id Unique identifier of user to bef ound
      * @param session
      * @returns User or null, if no user with provided id was found
      */
-    static async findById(id: number, session: ITask<never>) : Promise<User|null>{
+    static async findById(id: number, session: PrismaConnection) : Promise<User|null>{
+        
         try{
-            const userData = await session.oneOrNone(userQueries.findById, [id])
-            if(userData == null)
+            const user_data = await session.users.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            
+            if(user_data == null)
                 return null
             
-                  
-            return new User(id, userData.email, userData.username, userData.password_hash, userData.role, userData.forename, userData.surname,
-                userData.display_name, userData.enabled, new Date(userData.creation_timestamp), userData.root_id, userData.profile_picture, new Date(userData.last_login), userData.public_key)
+            
+            return new User(id, user_data.email, user_data.username, user_data.password_hash, user_data.role, user_data.forename, user_data.surname,
+                user_data.display_name, user_data.enabled, new Date(Number(user_data.creation_timestamp)), user_data.root_id, user_data.profile_picture, new Date(Number(user_data.last_login)), user_data.public_key)
         
         }catch(err: unknown){
             throw new Exception("Failed to find user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -142,8 +150,16 @@ export class User{
      * @param password_hash
      * @param session
      */
-    static async findByEmail(email: string, password_hash: string, session: ITask<never>) : Promise<User|null>{
-        const user_id = await session.oneOrNone(userQueries.findByEmail, [email, password_hash])
+    static async findByEmail(email: string, password_hash: string, session: PrismaConnection) : Promise<User|null>{
+        const user_id = await session.users.findFirst({
+            where:{
+                email: email,
+                password_hash: password_hash
+            },
+            select:{
+                id: true
+            }
+        })
         
         if(user_id == null)
             return null
@@ -156,32 +172,51 @@ export class User{
      * @param id
      * @param session
      */
-    static async getRole(id: number, session: ITask<never> | IDatabase<any>) : Promise<Types.User.Role>{
+    static async getRole(id: number, session: PrismaConnection) : Promise<Types.User.Role>{
         return await User.getProperty(id, ["role"], session)
     }
+    
+   /* static async deleteById(id: number, session: PrismaConnection): Promise<void> {
+        try {
+            const root_id = await User.getProperty(id, ["root_id"], session)
+            await Group.deleteById(root_id, session)
+            await session.users.delete({
+                where: {
+                    id: id
+                }
+            })
+        } catch (err: unknown) {
+            console.log(err)
+            throw new Exception("Failed to delete user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
+        }
+    }*/
 
     /**
      * Get any user attribute
      * @param id
-     * @param property_name
+     * @param property_names
      * @param session
      */
-    static async getProperty(id: number, property_name: string[], session: ITask<never> | IDatabase<any>) : Promise<any[] | any>{
+    static async getProperty(id: number, property_names: string[], session: PrismaConnection) : Promise<any[] | any>{
         try{
-
-            let properties = property_name[0]
-            for(let i = 1; i < property_name.length; i++)
-                properties = `${properties}, ${property_name[i]}`
-            
-            const queryString = formatString(userQueries.getProperty, properties)
-            const propertyData = await session.manyOrNone(queryString, [id])
-            
-            const returnData = []
-            for(let index = 0; index < propertyData.length; index++){
-                returnData.push(propertyData[index][property_name[index]])
+            const select_object = {}
+            for(const property_name of property_names){
+                Object.defineProperty(select_object, property_name, {value: true, writable: true, enumerable: true,
+                    configurable: true})
             }
-
-            return propertyData.length === 1 ? returnData[0] : returnData
+            
+            const propertyData = await session.users.findMany({
+                where:{
+                    id: id
+                },
+                select:select_object
+            })
+            
+            const return_data = []
+            for(let index = 0; index < propertyData.length; index++){
+                return_data.push(propertyData[index][property_names[index]])
+            }
+            return propertyData.length === 1 ? return_data[0] : return_data
         }catch(err: unknown){
             throw new Exception("Failed to fetch property!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -189,7 +224,7 @@ export class User{
 
 
 
-    static async getAllData(id: number, session: ITask<never>) : Promise<Group>{
+    static async getAllData(id: number, session: PrismaConnection) : Promise<Group>{
         
         const root_id= await User.getProperty(id, ["root_id"],session)
 
@@ -202,14 +237,18 @@ export class User{
      * @param id Unique identifier of user to be deleted
      * @param session Transaction object for querying
      */
-    private static async deleteById_user(id: number, session: ITask<never>) : Promise<void>{
-        const user = await User.findById(id, session)
-        if(user == null)
+    public static async deleteById(id: number, session: PrismaConnection) : Promise<void>{
+        const root_id = await User.getProperty(id, ["root_id"], session)
+        if(root_id == null)
             throw new Exception("User to be deleted not found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{    
-            await Group.deleteById(user.root_id, session)
-            await session.none('DELETE FROM "User".users WHERE id=$1;', [id])
+            await Group.deleteById(root_id, session)
+            await session.users.delete({
+                where:{
+                    id: id
+                }
+            })
             
         }catch(err: unknown){
             throw new Exception("Failed to delete user!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
@@ -218,10 +257,14 @@ export class User{
 
 
 
-    static async exists(id: number, session: ITask<never>) : Promise<boolean>{
+    static async exists(id: number, session: PrismaConnection) : Promise<boolean>{
         try{
-            const existsData = await session.oneOrNone(userQueries.exists, [id])
-            return existsData.exists
+            const existsData = await session.users.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            return existsData != null
         }catch(err: unknown){
             throw new Exception("Failed to check user existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -234,12 +277,18 @@ export class User{
      * @param email E-mail address to be checked for
      * @param session
      */
-    static async checkEmailExistence(email: string, session: ITask<never>) : Promise<boolean>{
+    static async checkEmailExistence(email: string, session: PrismaConnection) : Promise<boolean>{
         try{
-            const queryData = [email]
-            const existsData = await session.one(userQueries.checkEmailExistence, queryData)
+            const exists_data = await session.users.aggregate({
+                _count:{
+                    id: true
+                },
+                where:{
+                    email: email
+                }
+            })
             
-            return existsData.exists
+            return exists_data._count.id != 0
         }catch(err: unknown){
             throw new Exception("Failed to check for email existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -252,12 +301,18 @@ export class User{
      * @param username Username to be checked for
      * @param session
      */
-    static async checkUsernameExistence(username: string, session: ITask<never>) : Promise<boolean>{
+    static async checkUsernameExistence(username: string, session: PrismaConnection) : Promise<boolean>{
         try{
-            const queryData = [username]
-            const existsData = await session.one(userQueries.checkUsernameExistence, queryData)
-            
-            return existsData.exists
+            const exists_data = await session.users.aggregate({
+                _count:{
+                    id: true
+                },
+                where:{
+                    username: username
+                }
+            })
+
+            return exists_data._count.id != 0
         }catch(err: unknown){
             throw new Exception("Failed to check for username existence!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -270,7 +325,7 @@ export class User{
      * @param id Unique identifier of user to be disabled
      * @param session Transaction for querying
     */
-    static async disable(id: number, session: ITask<never>) : Promise<void>{
+    static async disable(id: number, session: PrismaConnection) : Promise<void>{
         await User.setProperty(id, "enabled", false, session)
     }
 
@@ -281,12 +336,12 @@ export class User{
      * @param id Unique identifier user to be enabled
      * @param session Transaction for querying
     */
-    static async enable(id: number, session: ITask<never>) : Promise<void>{
+    static async enable(id: number, session: PrismaConnection) : Promise<void>{
         await User.setProperty(id, "enabled", true,session)
     }
 
 
-    static async changeProfilePicture(id: number, new_profile_picture: string, session: ITask<never>) : Promise<void>{
+    static async changeProfilePicture(id: number, new_profile_picture: string, session: PrismaConnection) : Promise<void>{
         const exists = await User.exists(id, session)
         
         if(!exists)
@@ -296,8 +351,16 @@ export class User{
             throw new Exception("Profile picture not a valid Base64 string!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
         try{
-            const queryData = [id, new_profile_picture]
-            await session.none('UPDATE "User".users SET profile_picture=$2 WHERE id=$1;', queryData)
+            /*const queryData = [id, new_profile_picture]
+            await session.none('UPDATE "User".users SET profile_picture=$2 WHERE id=$1;', queryData)*/
+            await session.users.update({
+                where:{
+                    id: id
+                },
+                data:{
+                    profile_picture: new_profile_picture
+                }
+            })
         }catch(err: unknown){
             throw new Exception("Failed to change profile picture!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -314,7 +377,7 @@ export class User{
      * @param new_value New value for provided property
      * @param session
      */
-    private static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
+    private static async setProperty(id: number, property_name: string, new_value: any, session: PrismaConnection) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
@@ -323,12 +386,16 @@ export class User{
             throw new Exception("Unable to find entry to change porperty of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
+            const update_data = {}
+            Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
+                configurable: true})
 
-
-            const queryString = formatString(userQueries.setProperty as string, property_name)
-            const queryData = [id, new_value]
-
-            await session.none(queryString, queryData)
+            await session.users.update({
+                where:{
+                    id: id
+                },
+                data: update_data
+            })
         }catch(err: unknown){
             throw new Exception("Failed to change property of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }

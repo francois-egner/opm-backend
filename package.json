@@ -4,8 +4,9 @@
   "description": "REST-API for OpenPasswordManager",
   "main": "src/index.ts",
   "scripts": {
-    "test": "npx eslint test/* && CONFIG='./config_dev.json' mocha -r ts-node/register test/*.ts",
+    "test": "npx eslint test/* && CONFIG='./config_dev.json' mocha -s 0 -r ts-node/register test/*.ts",
     "dev": "npx eslint src/* && CONFIG='./config_dev.json' npx ts-node src/index.ts",
+    "build": "npx eslint src/* test/* && npx tsc",
     "serve": "npx eslint src/* && npm run dev test && npx tsc && CONFIG='./config.json' node dist/src/index.js",
     "clean": "rm -Rf dist/ logs/"
   },

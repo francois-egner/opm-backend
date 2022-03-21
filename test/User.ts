@@ -1,4 +1,4 @@
-import { user_reset } from './Sql'
+
 import chai, {expect, should} from 'chai'
 chai.should()
 import chaiHttp from 'chai-http'
@@ -9,6 +9,7 @@ import {connection, connect, disconnect} from "../db"
 import { server } from "../src"
 import jwt_decode  from 'jwt-decode'
 import crypto from "crypto"
+import {Sleep} from "../src/Utils/Shared";
 
 chai.use(chaiHttp)
 
@@ -41,14 +42,20 @@ let custom_group_id = 0
 
 before(async function() {
     await connect();
-    await connection.none(user_reset)
+    await connection.elements.deleteMany({})
+    await connection.sections.deleteMany({})
+    await connection.entries.deleteMany({})
+    await connection.groups.deleteMany({})
+    await connection.users.deleteMany({})
 });
 
 after(async function(){
     await disconnect();
+    process.exit(1)
 })
 
 describe("User", async function(){
+    
     it("should create a new normal user", function(done){
         chai.request(server).put("/auth/register/", ).send(user)
         .end((err, res)=>{
@@ -56,7 +63,7 @@ describe("User", async function(){
             res.body.should.have.property("private_key")
             user.private_key = res.body.private_key
             res.body.should.have.property("user_data")
-            res.body.user_data.should.have.property('_id').eql(1)
+            res.body.user_data.should.have.property('_id').to.be.a("number")
             res.body.user_data.should.have.property('_email').eql(user.email)
             res.body.user_data.should.have.property('_password_hash').eql(user.password_hash)
             res.body.user_data.should.have.property('_forename').eql(user.forename)
@@ -105,23 +112,24 @@ describe("User", async function(){
         chai.request(server).get("/users/").auth(user.jwt, { type: 'bearer' }).send()
             .end((err, res)=>{
                 res.should.have.status(HttpStatus.OK)
-                res.body.should.have.property("email")
-                res.body.should.have.property("role")
-                res.body.should.have.property("forename")
-                res.body.should.have.property("surname")
-                res.body.should.have.property("display_name")
-                res.body.should.have.property("enabled")
-                res.body.should.have.property("root_id")
-                user.root_id = res.body.root_id
-                res.body.should.have.property("profile_picture")
+                res.body.should.have.property("_email")
+                res.body.should.have.property("_role")
+                res.body.should.have.property("_forename")
+                res.body.should.have.property("_surname")
+                res.body.should.have.property("_display_name")
+                res.body.should.have.property("_enabled")
+                res.body.should.have.property("_root_id")
+                user.root_id = res.body._root_id
+                res.body.should.have.property("_profile_picture")
                 
                 done()
             })
     })
     
-    it("should create the first custom group", function(done){
+    it(`should create custom group`, function(done){
+        
         const group_data = {
-            name: "Servers",
+            name: `Servers`,
             supergroup_id: user.root_id,
             icon: "test"
             
@@ -156,7 +164,7 @@ describe("User", async function(){
                 
             })
     })
-    
+        
     it("should return all groups", function(done){
        chai.request(server).get("/groups/").auth(user.jwt, { type: 'bearer' }).send()
             .end((err, res)=>{                
@@ -172,4 +180,23 @@ describe("User", async function(){
                 done()
              })
     })
+
+    
+    
+    
+    
+    it("should delete the user", async function(){
+        const group_data = {
+            name: `Servers`,
+            supergroup_id: user.root_id,
+            icon: "test"
+
+        }
+        for(let i = 0; i<100; i++){
+            const res = await chai.request(server).put("/groups/").auth(user.jwt, { type: 'bearer' }).send(group_data)
+        }
+            console.time("Deletion time")
+        await chai.request(server).delete(`/users/`).auth(user.jwt, { type: 'bearer' }).send()
+            console.timeEnd("Deletion time")
+    }).timeout(30000)
 })

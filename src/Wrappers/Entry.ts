@@ -1,4 +1,3 @@
-import { entryQueries } from "../../db"
 import {formatString, NULL} from "../Utils/Shared"
 import { Exception } from "../Utils/Exception"
 import HttpStatus from 'http-status-codes'
@@ -76,7 +75,7 @@ export class Entry{
      * @returns Instance of the newly created entry
      */
 
-    public static async create(name: string, tags: string[], icon: string, group_id: number, pos_index: number, session: ITask<never>) : Promise<Entry>{
+    public static async create(name: string, tags: string[], icon: string, group_id: number, pos_index: number, session: PrismaConnection) : Promise<Entry>{
         
         const group = await Group.findById(group_id, NULL, NULL, session)
 
@@ -96,10 +95,18 @@ export class Entry{
                 await Entry.setProperty(entry.id, "pos_index", entry.pos_index+1, session)   
         }
 
-        const queryData = [name, tags, icon, group_id, pos_index]
-        const entryData = await session.one(entryQueries.create, queryData)
+        
+        const entry_data = await session.entries.create({
+            data:{
+                name: name,
+                tags: tags,
+                icon: icon,
+                group_id: group_id,
+                pos_index: pos_index
+            }
+        })
 
-        return new Entry(entryData.id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id)
+        return new Entry(entry_data.id, entry_data.name, entry_data.tags, entry_data.pos_index, entry_data.icon, entry_data.group_id)
         
     }
 
@@ -112,15 +119,21 @@ export class Entry{
      * @returns Instance of a found entry or null if no entry with provided id was found
      */
 
-    public static async findById(id: number, session: ITask<never>) : Promise<Entry | null>{
+    public static async findById(id: number, session: PrismaConnection) : Promise<Entry | null>{
         try{
-            const entryData = await session.oneOrNone(entryQueries.findById, [id])
-            if(entryData == null)
+            
+            const entry_data = await session.entries.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            
+            if(entry_data == null)
                 return null
             
             const sections = await Entry.getSections(id, false, session)
             
-            return new Entry(id, entryData.name, entryData.tags, entryData.pos_index, entryData.icon, entryData.group_id, sections == null ? undefined : sections)
+            return new Entry(id, entry_data.name, entry_data.tags, entry_data.pos_index, entry_data.icon, entry_data.group_id, sections == null ? undefined : sections)
         }catch(err: unknown){
             throw new Exception("Failed to find entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -134,11 +147,15 @@ export class Entry{
      * @param session
      * @returns true if an entry with the provided id was found, else false
      */
-    public static async exists(id: number, session: ITask<never>) : Promise<boolean>{
+    public static async exists(id: number, session: PrismaConnection) : Promise<boolean>{
         
         try{
-            const existsData = await session.one(entryQueries.exists, [id]);
-            return existsData.exists;
+            const exists_data = await session.entries.findUnique({
+                where:{
+                    id: id
+                }
+            })
+            return exists_data != null
         }catch(err: unknown){
             throw new Exception("Failed to check for existence of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
@@ -153,21 +170,28 @@ export class Entry{
      * @param session
      * @returns Array of Entry instances, ids of associated entries or null if no entry was founds
      */
-    public static async getSections(id: number, flat=true, session: ITask<never>) : Promise<Section[] | number[] | null>{
+    public static async getSections(id: number, flat=true, session: PrismaConnection) : Promise<Section[] | number[] | null>{
         const exists = await Entry.exists(id, session)
         if(!exists) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
-            const queryData = [id]
-            const sections_data = await session.manyOrNone(entryQueries.getSections, queryData)
+            const sections_data = await session.sections.findMany({
+                where:{
+                    entry_id: id
+                },
+                select:{
+                    id: true
+                }
+            })
 
             if (sections_data == null)
                 return null
 
             const sections: Section[] | number[] = []
             for (const section_data of sections_data){
-                sections.push(flat? section_data.id : await Section.findById(section_data.id, session))
+                const obj = flat ? section_data.id : await Section.findById(section_data.id, session)
+                sections.push(obj as number & Section) //Weird error, if obj is not type casted to number & section?!
             }
             
             return sections
@@ -185,7 +209,7 @@ export class Entry{
      * @param session
      */
 
-    public static async deleteById(id: number, session: ITask<never>) : Promise<void>{
+    public static async deleteById(id: number, session: PrismaConnection) : Promise<void>{
         const entry = await Entry.findById(id, session)
         if(entry == null) 
             throw new Exception("No entry with provided id found!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
@@ -198,8 +222,13 @@ export class Entry{
             
         for(const section_id of sections_id)
             await Section.deleteById(section_id, session)
+        
+        await session.entries.delete({
+            where:{
+                id: id
+            }
+        })
             
-            await session.none(entryQueries.deleteById, [id])
     }
 
 
@@ -211,7 +240,7 @@ export class Entry{
      * @param session
      * @returns User object or user id
      */
-    public static async getOwner(id: number, flat=true, session: ITask<never>) : Promise<User|number>{
+    public static async getOwner(id: number, flat=true, session: PrismaConnection) : Promise<User|number>{
         const entry = await Entry.findById(id, session)
 
         if(entry == null)
@@ -229,7 +258,7 @@ export class Entry{
      * @param pos_index Position (index) to place new section to
      * @param session
      */
-    public static async addSection(id: number, section: Section, pos_index: number, session: ITask<never>) : Promise<void>{
+    public static async addSection(id: number, section: Section, pos_index: number, session: PrismaConnection) : Promise<void>{
         const entry = await Entry.findById(id,session)
 
         if(entry == null)
@@ -262,7 +291,7 @@ export class Entry{
      * @param del if true, removed section will be deleted completly
      * @param session
      */
-    public static async removeSection(id: number, section_id: number, del: boolean, session: ITask<never>) : Promise<void>{
+    public static async removeSection(id: number, section_id: number, del: boolean, session: PrismaConnection) : Promise<void>{
         const sections = await Entry.getSections(id, false, session) as Section[]
         const section_to_remove = await Section.findById(section_id, session)
 
@@ -293,7 +322,7 @@ export class Entry{
      * @param new_pos_index Position (index) the section should be placed to
      * @param session
      */
-    public static async repositionSection(id: number, section_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
+    public static async repositionSection(id: number, section_id: number, new_pos_index: number, session: PrismaConnection) : Promise<void>{
         const sections = await Entry.getSections(id, false, session) as Section[]
         const section_to_reposition = await Section.findById(section_id, session)
 
@@ -327,7 +356,7 @@ export class Entry{
      * @param [new_pos_index] Position (index) the section should be placed to in the new entry. Default: Last position
      * @param session
      */
-    public static async moveSection(id: number, section_id: number, new_entry_id: number, new_pos_index: number, session: ITask<never>) : Promise<void>{
+    public static async moveSection(id: number, section_id: number, new_entry_id: number, new_pos_index: number, session: PrismaConnection) : Promise<void>{
         const sections = await Entry.getSections(id, false, session) as Section[]
         const section_to_move = await Section.findById(section_id, session)
 
@@ -370,7 +399,7 @@ export class Entry{
      * @param new_value New value for provided property
      * @param session
      */
-    public static async setProperty(id: number, property_name: string, new_value: any, session: ITask<never>) : Promise<void>{
+    public static async setProperty(id: number, property_name: string, new_value: any, session: PrismaConnection) : Promise<void>{
         if(!propertyNames.includes(property_name))
             throw new Exception("Invalid property name provided!", Types.ExceptionType.ParameterError, HttpStatus.BAD_REQUEST)
         
@@ -379,12 +408,18 @@ export class Entry{
             throw new Exception("Unable to find entry to change property of!", Types.ExceptionType.ParameterError, HttpStatus.NOT_FOUND)
         
         try{
+            const update_data = {}
+            Object.defineProperty(update_data, property_name, {value: new_value, writable: true, enumerable: true,
+                configurable: true})
 
+            await session.entries.update({
+                where:{
+                    id: id
+                },
+                data: update_data
+            })
 
-            const queryString = formatString(entryQueries.setProperty as string, property_name)
-            const queryData = [id,  new_value]
-
-            await session.none(queryString, queryData)
+            
         }catch(err: unknown){
             throw new Exception("Failed to change property of entry!", Types.ExceptionType.SQLError, HttpStatus.INTERNAL_SERVER_ERROR, err as Error)
         }
